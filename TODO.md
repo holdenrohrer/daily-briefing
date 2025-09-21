@@ -1,0 +1,65 @@
+# TODO
+
+MVP typesetting (SILE):
+- [ ] Create sile/holden-report.sil class:
+  - [ ] Page size, margins, and frames for sharp boundaries
+  - [ ] Running header: “Holden’s Daily Report”
+  - [ ] Footer with page numbers
+  - [ ] Color palette (Ink, Subtle, Accent) and baseline grid spacing
+  - [ ] Font setup (Inter, JetBrains Mono) loaded from assets/fonts
+- [ ] Main entrypoint sile/main.sil using the class and rendering placeholder sections
+- [ ] Section components:
+  - [ ] A generic “section box” macro that composes title + body content
+  - [ ] Automatic collation of short section boxes onto the same page
+
+Build pipeline:
+- [ ] tools/build.py: Orchestrate data fetch → JSON/SVG → call SILE to build output/brief.pdf
+- [ ] Caching layer (data/.cache) with timestamps to limit API calls
+- [ ] Config via environment variables (.env and/or dotenv) for API keys
+- [ ] Make the build idempotent and fast (skip unchanged assets)
+
+Data ingestion (Python):
+- [ ] RSS (feedparser):
+  - [ ] Read configured feeds (incl. https://feeds.arstechnica.com/arstechnica/index and https://pluralistic.net/feed/)
+  - [ ] Normalize to JSON (title, link, source, published, summary)
+- [ ] Wikipedia (MediaWiki API):
+  - [ ] Fetch a low-ink textual summary of the front page (avoid large images)
+  - [ ] Strip styles, sanitize HTML to plain text/limited markup
+- [ ] API spend summary (previous day):
+  - [ ] Define source(s) and auth
+  - [ ] Compute totals and top endpoints; output small table JSON
+- [ ] YouTube (Data API v3):
+  - [ ] Fetch latest videos from followed channels (or from a channel list)
+  - [ ] Extract title, channel, published time, link
+- [ ] Facebook Graph API:
+  - [ ] Fetch new posts from followed feeds (permissions required)
+  - [ ] Normalize to author, time, text, links
+- [ ] CALDAV:
+  - [ ] Connect to calendar and fetch today’s events
+  - [ ] Handle time zones; output start/end, title, location
+- [ ] Weather:
+  - [ ] Fetch daily forecast
+  - [ ] Generate an SVG plot (matplotlib) saved to assets/charts/weather.svg
+
+SILE rendering details:
+- [ ] Section titles with consistent typographic hierarchy
+- [ ] Bullet and code styles (monospace)
+- [ ] Hyphenation and widows/orphans control
+- [ ] Sensible overflow handling (truncate/continue indicators)
+
+Integration:
+- [ ] Combine JSON data into a single data/data.json for SILE
+- [ ] In SILE, use Lua to read and map JSON to section boxes
+- [ ] Insert SVG charts/images with proper scaling and low-ink palette
+
+Ops & polish:
+- [ ] .gitignore: data caches, output PDFs, local secrets
+- [ ] CI or cron to generate daily
+- [ ] Error handling and fallbacks when APIs fail
+- [ ] Unit tests for data transforms (Python)
+- [ ] Performance: Parallel fetches, timeouts, retries with backoff
+
+Notes/decisions:
+- Low-color aesthetic: grayscale + one accent color
+- Short sections can share a page via stacked boxes; avoid large white gaps
+- Keep secrets out of the repo; prefer environment variables
