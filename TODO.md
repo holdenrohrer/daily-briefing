@@ -18,11 +18,11 @@ MVP typesetting (SILE):
   - [x] Font setup (JetBrains Mono) loaded from environment.
 - [x] Main entrypoint sile/main.sil using the class and rendering placeholder sections
 - [x] Placeholder sections render in main.sil (temporary sans-serif header; class TBD)
-- [ ] Section components:
+- [x] Section components:
   - [x] A generic “section box” macro that composes title + body content
   - [x] Section header keep with section body.
   - [x] Glue between section title and section body
-  - [ ] Glue so that if there is only 30% of space left on a page, and the current section can't fit, skip to the next page
+  - [x] Glue so that if there is only 30% of space left on a page, and the current section can't fit, skip to the next page
 - [ ] Overall report look:
   - [ ] tools/build.py option to enable visible debug boxes on output/brief.pdf
   - [ ] Remove indent from section headers and paragraphs
