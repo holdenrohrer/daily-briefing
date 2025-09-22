@@ -91,9 +91,9 @@
     -- Draw header/footer each page without odd/even logic
     local _endPage = class.endPage
     class.endPage = function (self)
-      -- Running header
-      local rh = SILE.getFrame("runningHead")
-      if rh then
+      -- Running header (tolerate missing frame)
+      local ok_rh, rh = pcall(SILE.getFrame, "runningHead")
+      if ok_rh and rh then
         SILE.typesetNaturally(rh, function ()
           SILE.settings:toplevelState()
           SILE.settings:set("current.parindent", SILE.types.node.glue())
@@ -104,9 +104,9 @@
         end)
       end
 
-      -- Footer: page number
-      local ff = SILE.getFrame("folio")
-      if ff then
+      -- Footer: page number (tolerate missing frame)
+      local ok_ff, ff = pcall(SILE.getFrame, "folio")
+      if ok_ff and ff then
         SILE.typesetNaturally(ff, function ()
           SILE.settings:toplevelState()
           SILE.settings:set("current.parindent", SILE.types.node.glue())
