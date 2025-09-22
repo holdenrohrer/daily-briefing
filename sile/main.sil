@@ -9,8 +9,8 @@
 \include[src=sections/weather.sil]
 
 % Configure per-page running header and footer (book class)
-\runningheader{}{\hrHeader}{}
-\runningfooter{}{\Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}}{}
+\runningHeader{}{\hrHeader}{}
+\runningFooter{}{\Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}}{}
 
 % Load shared data state (JSON lib and path)
 \loaddata
