@@ -89,4 +89,58 @@ function class:registerCommands ()
   plain.registerCommands(self)
 end
 
+function needspace(height_spec)
+  -- Parse the height specification
+  local height = SILE.parseComplexFrameDimension(height_spec)
+  
+  -- Add a custom node to the queue
+  local node = {
+    type = "needspace_check",
+    -- This might be called during processing
+    outputYourself = function(self, typesetter, line)
+      local remaining = typesetter.frame:bottom() - typesetter.frame.state.cursorY 
+      builtin_dump(remaining)
+      builtin_dump(height_spec)
+      io.write("\n")
+      if remaining < height_spec then
+        local out = SILE.types.node.glue(height)
+        return out
+      end
+    end
+  }
+
+  -- Use pushVertical to add the node
+  SILE.typesetter:pushVertical(node)
+end
+
+function builtin_dump(val, name, indent, seen)
+  -- a really good debug primitive
+  name   = name or "<root>"
+  indent = indent or ""
+  seen   = seen or {}
+
+  if type(val) == "table" then
+    if seen[val] then
+      print(indent .. name .. " = { <cycle> }")
+      return
+    end
+    seen[val] = true
+    print(indent .. name .. " = {")
+    for k, v in pairs(val) do
+      local key = (type(k) == "string") and k or "["..tostring(k).."]"
+      builtin_dump(v, key, indent .. "  ", seen)
+    end
+    print(indent .. "}")
+  elseif type(val) == "function" then
+    -- debug.getinfo is part of the standard library
+    local info = debug.getinfo(val, "Sn")
+    local fn = info.name or "<anonymous>"
+    fn = fn .. " (" .. (info.short_src or "?") .. ":" .. (info.linedefined or "?") .. ")"
+    print(indent .. name .. " = function: " .. fn)
+  else
+    print(indent .. name .. " = " .. tostring(val))
+  end
+end
+
+
 return class
