@@ -40,29 +40,74 @@ def _write_json(path: Path, data: Dict[str, Any]) -> None:
 
 def _build_placeholder_data() -> Dict[str, Any]:
     """
-    Placeholder normalized structure. As data integrations are implemented,
-    replace the empty lists / None values with real content.
+    Placeholder normalized structure for all sections.
+    Includes titles and minimal items to make SILE output visibly change.
     """
-    return {
-        "generated_at": _iso_now(),
-        "version": 1,
+    now = _iso_now()
+    yesterday = datetime.now(timezone.utc).date().isoformat()
+    data: Dict[str, Any] = {
+        "generated_at": now,
+        "version": 2,
         "sections": {
-            "rss": [],
-            "wikipedia": None,
-            "api_spend": [],
-            "youtube": [],
-            "facebook": [],
-            "caldav": [],
+            "rss": {
+                "title": "RSS Highlights",
+                "items": [
+                    {
+                        "title": "Placeholder: Ars Technica",
+                        "link": "https://feeds.arstechnica.com/arstechnica/index",
+                        "source": "Ars Technica",
+                        "published": now,
+                        "summary": "This is a placeholder RSS item to demo layout.",
+                    }
+                ],
+            },
+            "wikipedia": {
+                "title": "Wikipedia Front Page",
+                "summary": "Placeholder summary of Wikipedia's main page.",
+                "link": "https://en.wikipedia.org/wiki/Main_Page",
+                "updated": now,
+            },
+            "api_spend": {
+                "title": "API Spend (Yesterday)",
+                "date": yesterday,
+                "total_usd": 0.0,
+                "by_service": [],
+                "top_endpoints": [],
+            },
+            "youtube": {
+                "title": "YouTube",
+                "items": [
+                    {
+                        "title": "Placeholder Video",
+                        "channel": "Example Channel",
+                        "published": now,
+                        "link": "https://youtube.com/",
+                    }
+                ],
+            },
+            "facebook": {
+                "title": "Facebook",
+                "items": [],
+            },
+            "caldav": {
+                "title": "Today’s Events",
+                "items": [],
+            },
             "weather": {
+                "title": "Weather",
                 "svg_path": "assets/charts/weather.svg",
                 "items": [],
             },
         },
-        "sources": [],
+        "sources": [
+            {"name": "Ars Technica RSS", "url": "https://feeds.arstechnica.com/arstechnica/index"},
+            {"name": "Pluralistic RSS", "url": "https://pluralistic.net/feed/"},
+        ],
         "notes": [
             "This is placeholder data. Populate via tools/* modules as they land."
         ],
     }
+    return data
 
 
 def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path) -> int:

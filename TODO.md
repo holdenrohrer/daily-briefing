@@ -3,7 +3,7 @@
 Next up (prioritized):
 - [x] SILE class skeleton in sile/holden-report.sil: frames, header, footer, counters
 - [x] Lua JSON loading in SILE using a standard JSON library if available (cjson/dkjson) and wire to section boxes
-- [ ] tools/build.py: expand placeholder combined JSON schema (titles, lists) and keep writing data/data.json
+- [x] tools/build.py: expand placeholder combined JSON schema (titles, lists) and keep writing data/data.json
 - [ ] Caching scaffold in data/.cache with TTL and freshness checks
 - [ ] .gitignore entries for caches and output artifacts
 

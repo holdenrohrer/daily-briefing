@@ -110,9 +110,21 @@
       SILE.typesetter:typeset("Data not loaded; JSON lib: " .. tostring(lib) .. ".")
       return
     end
-    local keys = {}
-    for k, _ in pairs(data) do keys[#keys + 1] = tostring(k) end
-    table.sort(keys)
-    SILE.typesetter:typeset("Top-level keys (" .. tostring(#keys) .. "): " .. table.concat(keys, ", "))
+    local sections = (type(data.sections) == "table") and data.sections or {}
+    local order = { "rss", "wikipedia", "api_spend", "youtube", "facebook", "caldav", "weather" }
+    local parts = {}
+    for _, key in ipairs(order) do
+      local sec = sections[key]
+      local count = 0
+      if type(sec) == "table" then
+        if key == "wikipedia" then
+          count = (type(sec.summary) == "string" and #sec.summary > 0) and 1 or 0
+        elseif type(sec.items) == "table" then
+          count = #sec.items
+        end
+      end
+      parts[#parts + 1] = key .. "=" .. tostring(count)
+    end
+    SILE.typesetter:typeset("Sections: " .. table.concat(parts, "; "))
   }
 }
