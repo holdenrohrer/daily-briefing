@@ -2,7 +2,7 @@
 
 Next up (prioritized):
 - [x] SILE class skeleton in sile/holden-report.sil: frames, header, footer, counters
-- [ ] Lua JSON loading in SILE (vendor a pure-Lua parser, e.g., dkjson) and wire to section boxes
+- [x] Lua JSON loading in SILE using a standard JSON library if available (cjson/dkjson) and wire to section boxes
 - [ ] tools/build.py: expand placeholder combined JSON schema (titles, lists) and keep writing data/data.json
 - [ ] Caching scaffold in data/.cache with TTL and freshness checks
 - [ ] .gitignore entries for caches and output artifacts
@@ -84,8 +84,8 @@ Integration:
 - [ ] In SILE, use Lua to read and map JSON to section boxes:
   - [x] Access path via REPORT_DATA_JSON in a placeholder section
   - [ ] Vendor a pure-Lua JSON parser (e.g., dkjson.lua) into sile/lib/json.lua
-  - [ ] Load and parse JSON in Lua
-  - [ ] Render section boxes from parsed data
+  - [x] Load and parse JSON in Lua
+  - [x] Render section boxes from parsed data
 - [ ] Insert SVG charts/images with proper scaling and low-ink palette
 
 Ops & polish:

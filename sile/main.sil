@@ -4,6 +4,7 @@
 % Page setup and running header
 \pagetop
 \runningheader
+\loaddata
 
 % Placeholder sections using a simple boxed style
 \sectionbox{
@@ -27,6 +28,11 @@
     local v = os.getenv("REPORT_DATA_JSON") or "not set"
     SILE.typesetter:typeset("Data JSON: " .. v)
   }
+}
+
+\sectionbox{
+  \sectiontitle{Data Summary}
+  \renderdataoverview
 }
 
 % Footer with page number

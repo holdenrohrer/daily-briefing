@@ -45,3 +45,74 @@
 \define[command=pagebottom]{
   \skip[height=0.5in]
 }
+
+% Load report data via a standard JSON library if available
+\define[command=loaddata]{
+  \lua{
+    -- Allow local vendored libs if later added (sile/lib/?.lua)
+    local added = "sile/lib/?.lua;"
+    if not string.find(package.path, added, 1, true) then
+      package.path = added .. package.path
+    end
+
+    -- Try common JSON libraries in order (no custom parsers)
+    local candidates = { "cjson.safe", "cjson", "dkjson", "json" }
+    local json, libname
+    for _, name in ipairs(candidates) do
+      local ok, mod = pcall(require, name)
+      if ok and mod then
+        json, libname = mod, name
+        break
+      end
+    end
+    SILE.scratch.json = json
+    SILE.scratch.json_lib = libname
+
+    local path = os.getenv("REPORT_DATA_JSON") or "data/data.json"
+    SILE.scratch.report_data_path = path
+
+    local fh = io.open(path, "rb")
+    if not fh then
+      SILE.typesetter:typeset("Could not open data file: " .. path)
+      return
+    end
+    local content = fh:read("*a")
+    fh:close()
+
+    if not json then
+      SILE.typesetter:typeset("No JSON library found (tried cjson.safe, cjson, dkjson, json).")
+      return
+    end
+
+    local ok, data
+    if json.decode then
+      ok, data = pcall(json.decode, content)
+    elseif json.parse then
+      ok, data = pcall(json.parse, content)
+    else
+      ok, data = false, nil
+    end
+    if not ok or type(data) ~= "table" then
+      SILE.typesetter:typeset("Failed to parse JSON with " .. tostring(libname or "unknown"))
+      return
+    end
+
+    SILE.scratch.report_data = data
+  }
+}
+
+% Render a minimal overview of loaded data into a section box
+\define[command=renderdataoverview]{
+  \lua{
+    local data = SILE.scratch.report_data
+    if not data then
+      local lib = SILE.scratch.json_lib or "none"
+      SILE.typesetter:typeset("Data not loaded; JSON lib: " .. tostring(lib) .. ".")
+      return
+    end
+    local keys = {}
+    for k, _ in pairs(data) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    SILE.typesetter:typeset("Top-level keys (" .. tostring(#keys) .. "): " .. table.concat(keys, ", "))
+  }
+}
