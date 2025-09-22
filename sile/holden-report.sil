@@ -30,11 +30,9 @@
   \skip[height=0.75em]
 }
 
-% Running header (class skeleton)
-\define[command=runningheader]{
+% Running header text (used by book class' running headers)
+\define[command=hrHeader]{
   \font[family=JetBrains Mono, weight=700, size=12pt]{\Accent{Holden’s Daily Report}}
-  \par
-  \skip[height=0.5em]
 }
 
 % Footer with page number (uses SILE folio counter if available)

@@ -8,9 +8,9 @@
 \include[src=sections/caldav.sil]
 \include[src=sections/weather.sil]
 
-% Page header (manual spacing — SILE 0.15.13 lacks \switchFrame)
-\pagetop
-\runningheader
+% Configure per-page running header and footer (book class)
+\runningheader{}{\hrHeader}{}
+\runningfooter{}{\Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}}{}
 
 % Load shared data state (JSON lib and path)
 \loaddata
@@ -53,8 +53,6 @@
 \caldavsection
 \weathersection
 
-% Footer with page number
-\pagebottom
-\pagefooter
+% End of document
 
 \end{document}
