@@ -8,15 +8,11 @@
 \include[src=sections/caldav.sil]
 \include[src=sections/weather.sil]
 
-% Page frames and running header
-\frame[id=header, x=1in, y=9.75in, width=6.5in, height=0.5in]
-\frame[id=content, x=1in, y=1in, width=6.5in, height=8.75in]
-\frame[id=footer, x=1in, y=0.5in, width=6.5in, height=0.5in]
-
-\switchFrame[id=header]
+% Page header (manual spacing — SILE 0.15.13 lacks \switchFrame)
+\pagetop
 \runningheader
 
-\switchFrame[id=content]
+% Load shared data state (JSON lib and path)
 \loaddata
 
 % Placeholder sections using a simple boxed style
@@ -58,7 +54,7 @@
 \weathersection
 
 % Footer with page number
-\switchFrame[id=footer]
+\pagebottom
 \pagefooter
 
 \end{document}
