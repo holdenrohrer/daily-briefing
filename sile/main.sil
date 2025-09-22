@@ -1,4 +1,4 @@
-\begin[papersize=letter]{document}
+\begin[class=book, papersize=letter]{document}
 \include[src=holden-report.sil]
 \include[src=sections/rss.sil]
 \include[src=sections/wikipedia.sil]
