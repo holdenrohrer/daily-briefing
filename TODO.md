@@ -7,7 +7,7 @@ MVP typesetting (SILE):
   - [ ] Footer with page numbers
   - [ ] Color palette (Ink, Subtle, Accent) and baseline grid spacing
   - [ ] Font setup (open-license fixed-width fonts) loaded from assets/fonts
-- [ ] Main entrypoint sile/main.sil using the class and rendering placeholder sections
+- [x] Main entrypoint sile/main.sil using the class and rendering placeholder sections
 - [x] Placeholder sections render in main.sil (temporary sans-serif header; class TBD)
 - [ ] Section components:
   - [x] A generic “section box” macro that composes title + body content
@@ -15,7 +15,7 @@ MVP typesetting (SILE):
 
 Build pipeline:
 - [x] generate.py: Minimal wrapper to invoke SILE and write output/brief.pdf
-- [ ] tools/build.py: Orchestrate data fetch → JSON/SVG → call SILE to build output/brief.pdf
+- [x] tools/build.py: Orchestrate data fetch → JSON/SVG → call SILE to build output/brief.pdf
 - [ ] Caching layer (data/.cache) with timestamps to limit API calls
 - [ ] Config via environment variables (.env and/or dotenv) for API keys
 - [ ] Make the build idempotent and fast (skip unchanged assets)
@@ -50,8 +50,14 @@ SILE rendering details:
 - [ ] Sensible overflow handling (truncate/continue indicators)
 
 Integration:
-- [ ] Combine JSON data into a single data/data.json for SILE
-- [ ] In SILE, use Lua to read and map JSON to section boxes
+- [ ] Combine JSON data into a single data/data.json for SILE:
+  - [x] Write placeholder combined JSON to data/data.json in tools/build.py
+  - [x] Pass the JSON path to SILE via REPORT_DATA_JSON env
+  - [ ] Merge real data from fetchers into the combined schema
+- [ ] In SILE, use Lua to read and map JSON to section boxes:
+  - [x] Access path via REPORT_DATA_JSON in a placeholder section
+  - [ ] Load and parse JSON in Lua
+  - [ ] Render section boxes from parsed data
 - [ ] Insert SVG charts/images with proper scaling and low-ink palette
 
 Ops & polish:
