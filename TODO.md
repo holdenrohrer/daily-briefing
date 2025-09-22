@@ -4,7 +4,7 @@ Next up (prioritized):
 - [x] SILE class skeleton in sile/holden-report.sil: frames, header, footer, counters
 - [x] Lua JSON loading in SILE using a standard JSON library if available (cjson/dkjson) and wire to section boxes
 - [x] Per-section pipeline skeletons: add sile/sections/* classes, per-section JSON filenames, and per-section Python modules; update tools/build.py to generate data/*.json
-- [ ] Implement the RSS vertical slice end-to-end (tools/rss.py -> data/rss.json -> sile/sections/rss.sil -> PDF).
+- [x] Implement the RSS vertical slice end-to-end (tools/rss.py -> data/rss.json -> sile/sections/rss.sil -> PDF).
 - [ ] Caching scaffold in data/.cache with TTL and freshness checks
 - [ ] .gitignore entries for caches and output artifacts
 
