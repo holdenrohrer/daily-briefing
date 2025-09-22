@@ -20,9 +20,8 @@
 
 \define[command=sectiontitle]{
   \font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
-  \par
-  \lua{ SILE.typesetter:pushPenalty(10000) }
-  \skip[height=0.5em]
+  \skip[height=.25em]
+  \nobreak
 }
 
 % Simple section box wrapper
