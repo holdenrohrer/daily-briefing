@@ -1,0 +1,92 @@
+--- holden-report document class.
+-- Inherit from plain, define frames, and render header/footer every page.
+
+local plain = require("classes.plain")
+
+local class = pl.class(plain)
+class._name = "holden-report"
+
+-- Default frameset inspired by classes.book, but without twoside logic.
+class.defaultFrameset = {
+  content = {
+    left = "8.3%pw",
+    right = "86%pw",
+    top = "11.6%ph",
+    bottom = "top(footnotes)",
+  },
+  folio = {
+    left = "left(content)",
+    right = "right(content)",
+    top = "bottom(footnotes)+3%ph",
+    bottom = "bottom(footnotes)+5%ph",
+  },
+  runningHead = {
+    left = "left(content)",
+    right = "right(content)",
+    top = "top(content)-8%ph",
+    bottom = "top(content)-3%ph",
+  },
+  footnotes = {
+    left = "left(content)",
+    right = "right(content)",
+    height = "0",
+    bottom = "83.3%ph",
+  },
+}
+
+function class:_init (options)
+  plain._init(self, options)
+  self:loadPackage("counters")
+  self:loadPackage("masters", {
+    {
+      id = "default",
+      firstContentFrame = "content",
+      frames = self.defaultFrameset,
+    },
+  })
+  self:loadPackage("footnotes", {
+    insertInto = "footnotes",
+    stealFrom = { "content" },
+  })
+
+  -- Disable any default folio rendering; footer will be handled by our macro.
+  SILE.scratch.counters = SILE.scratch.counters or {}
+  SILE.scratch.counters.folio = SILE.scratch.counters.folio or {}
+  SILE.scratch.counters.folio.off = true
+end
+
+function class:endPage ()
+  -- Running header (always, no odd/even switching)
+  local rh = SILE.getFrame("runningHead")
+  SILE.typesetNaturally(rh, function ()
+    SILE.settings:toplevelState()
+    SILE.settings:set("current.parindent", SILE.types.node.glue())
+    SILE.settings:set("document.lskip", SILE.types.node.glue())
+    SILE.settings:set("document.rskip", SILE.types.node.glue())
+    if SILE.Commands and SILE.Commands.hrHeader then
+      SILE.call("hrHeader")
+      SILE.call("par")
+    end
+  end)
+
+  -- Running footer (page number or other content)
+  local ff = SILE.getFrame("folio")
+  SILE.typesetNaturally(ff, function ()
+    SILE.settings:toplevelState()
+    SILE.settings:set("current.parindent", SILE.types.node.glue())
+    SILE.settings:set("document.lskip", SILE.types.node.glue())
+    SILE.settings:set("document.rskip", SILE.types.node.glue())
+    if SILE.Commands and SILE.Commands.runningFooter then
+      SILE.call("runningFooter")
+      SILE.call("par")
+    end
+  end)
+
+  return plain.endPage(self)
+end
+
+function class:registerCommands ()
+  plain.registerCommands(self)
+end
+
+return class

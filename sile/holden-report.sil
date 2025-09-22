@@ -1,7 +1,7 @@
 % Set a default monospace body font (JetBrains Mono)
 \font[family=JetBrains Mono, size=10pt]
 
-% Configure frames via masters and a custom plain-class endPage patch (SILE 0.15.13).
+% Frames and running header/footer are defined by the custom Lua class (classes/holden-report.lua).
 
 % Color palette and baseline grid
 \use[module=packages.color]
@@ -40,105 +40,7 @@
   \Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}
 }
 
-% Patch the plain class: define frames and draw header/footer on every page.
-\lua{
-  local class = SILE.documentState.documentClass
-  if not class._holden_patched then
-    class._holden_patched = true
 
-    -- Ensure counters + masters are available
-    class:loadPackage("counters")
-    class:loadPackage("masters", {
-      {
-        id = "default",
-        firstContentFrame = "content",
-        frames = {
-          content = {
-            left = "8.3%pw",
-            right = "86%pw",
-            top = "11.6%ph",
-            bottom = "top(footnotes)",
-          },
-          folio = {
-            left = "left(content)",
-            right = "right(content)",
-            top = "bottom(footnotes)+3%ph",
-            bottom = "bottom(footnotes)+5%ph",
-          },
-          runningHead = {
-            left = "left(content)",
-            right = "right(content)",
-            top = "top(content)-8%ph",
-            bottom = "top(content)-3%ph",
-          },
-          footnotes = {
-            left = "left(content)",
-            right = "right(content)",
-            height = "0",
-            bottom = "83.3%ph",
-          },
-        },
-      },
-    })
-
-    -- Ensure our frameset is active: masters package will set the first defined master as current in SILE 0.15.13
-
-    -- Disable built-in page number rendering by any class
-    SILE.scratch.counters = SILE.scratch.counters or {}
-    SILE.scratch.counters.folio = SILE.scratch.counters.folio or {}
-    SILE.scratch.counters.folio.off = true
-
-    -- Draw header/footer each page without odd/even logic
-    local _endPage = class.endPage
-    class.endPage = function (self)
-      -- Running header (only if this page template defines the frame)
-      local template = SILE.documentState and SILE.documentState.thisPageTemplate
-      local frames = template and template.frames
-      local rhExists = frames and frames.runningHead and true or false
-      if rhExists then
-        local rh = SILE.getFrame("runningHead")
-        SILE.typesetNaturally(rh, function ()
-          SILE.settings:toplevelState()
-          SILE.settings:set("current.parindent", SILE.types.node.glue())
-          SILE.settings:set("document.lskip", SILE.types.node.glue())
-          SILE.settings:set("document.rskip", SILE.types.node.glue())
-          SILE.call("hrHeader")
-          SILE.call("par")
-        end)
-      end
-
-      -- Footer: page number (only if this page template defines the frame)
-      local template = SILE.documentState and SILE.documentState.thisPageTemplate
-      local frames = template and template.frames
-      local ffExists = frames and frames.folio and true or false
-      if ffExists then
-        local ff = SILE.getFrame("folio")
-        SILE.typesetNaturally(ff, function ()
-          SILE.settings:toplevelState()
-          SILE.settings:set("current.parindent", SILE.types.node.glue())
-          SILE.settings:set("document.lskip", SILE.types.node.glue())
-          SILE.settings:set("document.rskip", SILE.types.node.glue())
-          SILE.call("runningFooter")
-          SILE.call("par")
-        end)
-      end
-
-      return _endPage(self)
-    end
-  end
-}
-
-% Footer with page number (uses SILE folio counter if available)
-\define[command=pagefooter]{
-  \skip[height=1em]
-  \Subtle{\font[family=JetBrains Mono, size=9pt]{
-    Page \lua{
-      local folio = (SILE and SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
-      SILE.typesetter:typeset(tostring(folio))
-    }
-  }}
-  \par
-}
 
 % Helper: typeset the current page number (folio) safely
 \define[command=hrPageNum]{
