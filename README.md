@@ -38,7 +38,7 @@ Planned directory layout:
 - data/: Cached API responses and normalized JSON
 - assets/: Fonts, icons, and generated charts (SVG preferred)
 - output/: Generated PDFs
-- generate.py: Orchestrates generation at a high-level and `--print [PRINTER_ID]` sends it to a printer
+- tools/build.py: Orchestrates generation at a high-level and `--print [PRINTER_ID]` sends it to a printer
 
 Typography and color:
 - Fonts: JetBrains Mono everywhere, in headers and body.
