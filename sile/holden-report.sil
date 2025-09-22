@@ -35,6 +35,11 @@
   \font[family=JetBrains Mono, weight=700, size=12pt]{\Accent{Holden’s Daily Report}}
 }
 
+% Running footer content and style (high-level styling)
+\define[command=runningFooter]{
+  \Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}
+}
+
 % Patch the plain class: define frames and draw header/footer on every page.
 \lua{
   local class = SILE.documentState.documentClass
@@ -46,7 +51,7 @@
     class:loadPackage("masters", {
       {
         id = "default",
-        firstContentFrame = class.firstContentFrame,
+        firstContentFrame = "content",
         frames = {
           content = {
             left = "8.3%pw",
@@ -76,6 +81,14 @@
       },
     })
 
+    -- Ensure our frameset is active for all pages
+    SILE.call("set-master", { id = "default" })
+
+    -- Disable built-in page number rendering by any class
+    SILE.scratch.counters = SILE.scratch.counters or {}
+    SILE.scratch.counters.folio = SILE.scratch.counters.folio or {}
+    SILE.scratch.counters.folio.off = true
+
     -- Draw header/footer each page without odd/even logic
     local _endPage = class.endPage
     class.endPage = function (self)
@@ -100,13 +113,7 @@
           SILE.settings:set("current.parindent", SILE.types.node.glue())
           SILE.settings:set("document.lskip", SILE.types.node.glue())
           SILE.settings:set("document.rskip", SILE.types.node.glue())
-          SILE.call("font", { family = "JetBrains Mono", size = "9pt" }, function ()
-            SILE.call("color", { color = "#666666" }, function ()
-              SILE.typesetter:typeset("Page ")
-              local folio = (SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
-              SILE.typesetter:typeset(tostring(folio))
-            end)
-          end)
+          SILE.call("runningFooter")
           SILE.call("par")
         end)
       end
