@@ -81,8 +81,7 @@
       },
     })
 
-    -- Ensure our frameset is active for all pages
-    SILE.call("set-master", { id = "default" })
+    -- Ensure our frameset is active: masters package will set the first defined master as current in SILE 0.15.13
 
     -- Disable built-in page number rendering by any class
     SILE.scratch.counters = SILE.scratch.counters or {}
