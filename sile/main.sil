@@ -9,8 +9,9 @@
 \include[src=sections/weather.sil]
 
 % Page setup and running header
-\pagetop
-\runningheader
+\set-master[name=holden]
+\frame[frame=header]{\runningheader}
+\switch-frame[frame=content]
 \loaddata
 
 % Placeholder sections using a simple boxed style
@@ -52,7 +53,6 @@
 \weathersection
 
 % Footer with page number
-\pagefooter
-\pagebottom
+\frame[frame=footer]{\pagefooter}
 
 \end{document}

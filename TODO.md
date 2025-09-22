@@ -10,10 +10,10 @@ Next up (prioritized):
 
 MVP typesetting (SILE):
 - [ ] Create sile/holden-report.sil class:
-  - [ ] Page size, margins, and frames for sharp boundaries
-  - [ ] Opening header
-  - [ ] Footer with page numbers
-  - [ ] Running header/counters setup (page numbers via counters)
+  - [x] Page size, margins, and frames for sharp boundaries
+  - [x] Opening header
+  - [x] Footer with page numbers
+  - [x] Running header/counters setup (page numbers via counters)
   - [ ] Color palette (Ink, Subtle, Accent) and baseline grid spacing
   - [ ] Font setup (open-license fixed-width fonts) loaded from assets/fonts
 - [x] Main entrypoint sile/main.sil using the class and rendering placeholder sections
