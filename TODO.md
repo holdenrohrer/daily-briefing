@@ -4,6 +4,7 @@ Next up (prioritized):
 - [x] SILE class skeleton in sile/holden-report.sil: frames, header, footer, counters
 - [x] Lua JSON loading in SILE using a standard JSON library if available (cjson/dkjson) and wire to section boxes
 - [ ] Per-section pipeline skeletons: add sile/sections/* classes, per-section JSON filenames, and per-section Python modules; update tools/build.py to generate data/*.json
+- [ ] Implement the RSS vertical slice end-to-end (tools/rss.py -> data/rss.json -> sile/sections/rss.sil -> PDF).
 - [ ] Caching scaffold in data/.cache with TTL and freshness checks
 - [ ] .gitignore entries for caches and output artifacts
 
@@ -79,12 +80,10 @@ SILE rendering details:
 Integration:
 - [ ] Per-section JSON inputs for SILE (no unified data.json):
   - [ ] Define canonical files: data/rss.json, data/wikipedia.json, data/api_spend.json, data/youtube.json, data/facebook.json, data/caldav.json, data/weather.json
-  - [ ] Expose env vars to override per-section paths (RSS_JSON, WIKIPEDIA_JSON, API_SPEND_JSON, YOUTUBE_JSON, FACEBOOK_JSON, CALDAV_JSON, WEATHER_JSON)
   - [ ] Update main.sil to include per-section section classes and render from each JSON
   - [ ] Remove references to unified data/data.json from code and docs
 - [ ] In SILE, use Lua to read and map per-section JSON to section boxes:
   - [x] Use standard JSON libraries if present (cjson/dkjson); do not vendor a parser
-  - [ ] If no JSON library is available, switch the affected section to XML input (native SILE support)
   - [ ] Add helper to load a JSON file by path (kept in holden-report.sil) and expose to section classes
   - [ ] Render each section from its own JSON file
 - [ ] Insert SVG charts/images with proper scaling and low-ink palette
@@ -98,4 +97,4 @@ Notes/decisions:
 - Short sections can share a page via stacked boxes; avoid large white gaps
 - Keep secrets out of the repo; prefer environment variables
 - Per-section architecture: one SILE section class + one Python producer + one JSON file per section
-- Do not vendor a JSON parser; rely on standard Lua JSON libs (cjson/dkjson). If unavailable, switch section input to XML (native SILE)
+- Do not vendor a JSON parser; rely on standard Lua JSON libs (cjson/dkjson).
