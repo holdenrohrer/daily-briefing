@@ -1,4 +1,4 @@
-\begin[class=book, papersize=letter]{document}
+\begin[class=plain, papersize=letter]{document}
 \include[src=holden-report.sil]
 \include[src=sections/rss.sil]
 \include[src=sections/wikipedia.sil]
@@ -8,9 +8,7 @@
 \include[src=sections/caldav.sil]
 \include[src=sections/weather.sil]
 
-% Configure per-page running headers (book class)
-\left-running-head{\hrHeader}
-\right-running-head{\hrHeader}
+% Running header/footer handled by holden-report.sil (custom plain-class patch)
 
 % Load shared data state (JSON lib and path)
 \loaddata
