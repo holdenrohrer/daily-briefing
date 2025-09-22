@@ -3,7 +3,7 @@
 Next up (prioritized):
 - [x] SILE class skeleton in sile/holden-report.sil: frames, header, footer, counters
 - [x] Lua JSON loading in SILE using a standard JSON library if available (cjson/dkjson) and wire to section boxes
-- [x] tools/build.py: expand placeholder combined JSON schema (titles, lists) and keep writing data/data.json
+- [ ] Per-section pipeline skeletons: add sile/sections/* classes, per-section JSON filenames, and per-section Python modules; update tools/build.py to generate data/*.json
 - [ ] Caching scaffold in data/.cache with TTL and freshness checks
 - [ ] .gitignore entries for caches and output artifacts
 
@@ -77,15 +77,16 @@ SILE rendering details:
 - [ ] Keep section boxes on baseline grid (align glue to baseline)
 
 Integration:
-- [ ] Combine JSON data into a single data/data.json for SILE:
-  - [x] Write placeholder combined JSON to data/data.json in tools/build.py
-  - [x] Pass the JSON path to SILE via REPORT_DATA_JSON env
-  - [ ] Merge real data from fetchers into the combined schema
-- [ ] In SILE, use Lua to read and map JSON to section boxes:
-  - [x] Access path via REPORT_DATA_JSON in a placeholder section
-  - [ ] Vendor a pure-Lua JSON parser (e.g., dkjson.lua) into sile/lib/json.lua
-  - [x] Load and parse JSON in Lua
-  - [x] Render section boxes from parsed data
+- [ ] Per-section JSON inputs for SILE (no unified data.json):
+  - [ ] Define canonical files: data/rss.json, data/wikipedia.json, data/api_spend.json, data/youtube.json, data/facebook.json, data/caldav.json, data/weather.json
+  - [ ] Expose env vars to override per-section paths (RSS_JSON, WIKIPEDIA_JSON, API_SPEND_JSON, YOUTUBE_JSON, FACEBOOK_JSON, CALDAV_JSON, WEATHER_JSON)
+  - [ ] Update main.sil to include per-section section classes and render from each JSON
+  - [ ] Remove references to unified data/data.json from code and docs
+- [ ] In SILE, use Lua to read and map per-section JSON to section boxes:
+  - [x] Use standard JSON libraries if present (cjson/dkjson); do not vendor a parser
+  - [ ] If no JSON library is available, switch the affected section to XML input (native SILE support)
+  - [ ] Add helper to load a JSON file by path (kept in holden-report.sil) and expose to section classes
+  - [ ] Render each section from its own JSON file
 - [ ] Insert SVG charts/images with proper scaling and low-ink palette
 
 Ops & polish:
@@ -96,3 +97,5 @@ Notes/decisions:
 - Low-color aesthetic: grayscale + one accent color
 - Short sections can share a page via stacked boxes; avoid large white gaps
 - Keep secrets out of the repo; prefer environment variables
+- Per-section architecture: one SILE section class + one Python producer + one JSON file per section
+- Do not vendor a JSON parser; rely on standard Lua JSON libs (cjson/dkjson). If unavailable, switch section input to XML (native SILE)

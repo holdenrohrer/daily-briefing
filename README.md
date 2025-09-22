@@ -17,8 +17,8 @@ Planned sections:
 - RSS: new items from followed feeds (including arstechnica, pluralistic.net)
 
 Architecture (high level):
-- Data gathering (Python): Fetch, normalize, and cache content as JSON and SVG artifacts.
-- Typesetting (SILE): SILE .sil templates (with Lua) render JSON/SVG into a styled PDF.
+- Per-section pipeline: each section has a Python producer (tools/<section>.py) that writes data/<section>.json, a SILE section class (sile/sections/<section>.sil) that renders the section, and the main document includes those classes.
+- Typesetting (SILE): holden-report.sil is the top-level class (frames, header, footer). It also hosts shared JSON utilities. Each section reads its own JSON file.
 - Layout strategy: Explicit SILE frames for page boundaries; “section boxes” that can flow multiple short sections onto one page; page numbers.
 
 Dev environment (Nix Flake):
@@ -30,15 +30,24 @@ Quick start:
 - (Once templates/scripts are added) python tools/build.py
 
 Planned directory layout:
-- sile/: SILE classes, packages, and main document templates
+- sile/: SILE classes and templates
   - sile/main.sil (entrypoint)
-  - sile/holden-report.sil (class: frames, header, footer, colors, fonts)
-  - sile/components/\*.sil (reusable section renderers)
-- tools/: Python scripts to fetch data, cache it, and render SILE input
-- data/: Cached API responses and normalized JSON
+  - sile/holden-report.sil (top-level class: frames, header, footer, colors, fonts, shared JSON helpers)
+  - sile/sections/rss.sil (RSS section class)
+  - sile/sections/wikipedia.sil
+  - sile/sections/api_spend.sil
+  - sile/sections/youtube.sil
+  - sile/sections/facebook.sil
+  - sile/sections/caldav.sil
+  - sile/sections/weather.sil
+- tools/: Python scripts per section to fetch data and write JSON; plus orchestrator
+  - tools/rss.py, tools/wiki.py, tools/spend.py, tools/youtube.py, tools/facebook.py, tools/caldav.py, tools/weather.py
+  - tools/build.py: Orchestrates generation and invokes SILE
+- data/: Per-section JSON and caches
+  - data/rss.json, data/wikipedia.json, data/api_spend.json, data/youtube.json, data/facebook.json, data/caldav.json, data/weather.json
+  - data/.cache/: raw API responses and metadata
 - assets/: Fonts, icons, and generated charts (SVG preferred)
 - output/: Generated PDFs
-- tools/build.py: Orchestrates generation at a high-level and `--print [PRINTER_ID]` sends it to a printer
 
 Typography and color:
 - Fonts: JetBrains Mono everywhere, in headers and body.
@@ -51,8 +60,8 @@ Pagination & layout:
 - Collate short sections using vertical boxes to avoid orphaned whitespace.
 
 Next steps:
-- Implement a minimal SILE class with frames, header, and page numbers.
-- Add a Python build script that writes JSON and invokes SILE.
-- Implement one data section end-to-end (RSS) as a vertical slice.
+- Keep holden-report.sil as the top-level class and add per-section SILE classes under sile/sections/.
+- Add per-section Python producers that write data/<section>.json and update the orchestrator to call them.
+- Implement the RSS vertical slice end-to-end (tools/rss.py -> data/rss.json -> sile/sections/rss.sil -> PDF).
 
 License: TBD
