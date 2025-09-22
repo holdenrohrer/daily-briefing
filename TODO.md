@@ -79,12 +79,12 @@ SILE rendering details:
 
 Integration:
 - [ ] Per-section JSON inputs for SILE (no unified data.json):
-  - [ ] Define canonical files: data/rss.json, data/wikipedia.json, data/api_spend.json, data/youtube.json, data/facebook.json, data/caldav.json, data/weather.json
+  - [x] Define canonical files: data/rss.json, data/wikipedia.json, data/api_spend.json, data/youtube.json, data/facebook.json, data/caldav.json, data/weather.json
   - [ ] Update main.sil to include per-section section classes and render from each JSON
   - [ ] Remove references to unified data/data.json from code and docs
 - [ ] In SILE, use Lua to read and map per-section JSON to section boxes:
   - [x] Use standard JSON libraries if present (cjson/dkjson); do not vendor a parser
-  - [ ] Add helper to load a JSON file by path (kept in holden-report.sil) and expose to section classes
+  - [x] Add helper to load a JSON file by path (kept in holden-report.sil) and expose to section classes
   - [ ] Render each section from its own JSON file
 - [ ] Insert SVG charts/images with proper scaling and low-ink palette
 

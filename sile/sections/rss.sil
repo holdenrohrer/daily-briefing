@@ -4,26 +4,14 @@
     \sectiontitle{RSS Highlights}
     \lua{
       local path = os.getenv("RSS_JSON") or "data/rss.json"
-      local fh = io.open(path, "rb")
-      if not fh then
-        SILE.typesetter:typeset("Missing JSON: " .. path)
+      local load = SILE.scratch.load_json_file
+      if not load then
+        SILE.typesetter:typeset("JSON helper not available; ensure \\loaddata ran.")
         return
       end
-      local content = fh:read("*a"); fh:close()
-
-      local json = SILE.scratch.json
-      if not json then
-        SILE.typesetter:typeset("No JSON library found (cjson/dkjson).")
-        return
-      end
-      local decode = json.decode or json.parse
-      if not decode then
-        SILE.typesetter:typeset("JSON library missing decode/parse.")
-        return
-      end
-      local ok, data = pcall(decode, content)
-      if not ok or type(data) ~= "table" then
-        SILE.typesetter:typeset("Failed to parse " .. path)
+      local data, err = load(path)
+      if not data then
+        SILE.typesetter:typeset("Failed to load " .. path .. " (" .. tostring(err) .. ")")
         return
       end
 

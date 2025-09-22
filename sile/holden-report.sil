@@ -1,13 +1,7 @@
 % Set a default monospace body font (JetBrains Mono)
 \font[family=JetBrains Mono, size=10pt]
 
-% Page frames and masters
-\use[module=packages.masters]
-\define-master[name=holden, frameset={
-  header = { left = "1in", right = "7.5in", top = "0.6in", bottom = "1.0in" },
-  content = { left = "1in", right = "7.5in", top = "1.1in", bottom = "10.0in" },
-  footer = { left = "1in", right = "7.5in", top = "10.1in", bottom = "10.6in" }
-}]
+% Masters disabled for SILE 0.15.13 compatibility; using manual \pagetop and \pagebottom spacing.
 
 % Color palette and baseline grid
 \use[module=packages.color]
@@ -114,6 +108,22 @@
 
     SILE.scratch.report_data = data
   }
+}
+
+% JSON helper to load a file into a Lua table using the shared library
+\lua{
+  function SILE.scratch.load_json_file(path)
+    local fh = io.open(path, "rb")
+    if not fh then return nil, "open" end
+    local content = fh:read("*a"); fh:close()
+    local json = SILE.scratch.json
+    if not json then return nil, "jsonlib" end
+    local decode = json.decode or json.parse
+    if not decode then return nil, "decode" end
+    local ok, data = pcall(decode, content)
+    if not ok or type(data) ~= "table" then return nil, "parse" end
+    return data
+  end
 }
 
 % Render a minimal overview of loaded data into a section box
