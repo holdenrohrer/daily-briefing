@@ -1,4 +1,3 @@
-
 % Set a default monospace body font (JetBrains Mono)
 \font[family=JetBrains Mono, size=10pt]
 
@@ -18,4 +17,31 @@
   \skip[height=0.75em]
   \process
   \skip[height=0.75em]
+}
+
+% Running header (class skeleton)
+\define[command=runningheader]{
+  \font[family=JetBrains Mono, weight=700, size=12pt]{Holden’s Daily Report}
+  \par
+  \skip[height=0.5em]
+}
+
+% Footer with page number (uses SILE folio counter if available)
+\define[command=pagefooter]{
+  \skip[height=1em]
+  \font[family=JetBrains Mono, size=9pt]{
+    Page \lua{
+      local folio = (SILE and SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
+      SILE.typesetter:typeset(tostring(folio))
+    }
+  }
+  \par
+}
+
+% Minimal frame-like vertical spacing to simulate top/bottom margins
+\define[command=beginpage]{
+  \skip[height=0.75in]
+}
+\define[command=endpage]{
+  \skip[height=0.5in]
 }

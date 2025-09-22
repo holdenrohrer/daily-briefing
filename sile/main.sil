@@ -1,8 +1,9 @@
 \begin[papersize=letter]{document}
 \include[src=holden-report.sil]
 
-% Opening header (static, minimal)
-\reporttitle{Holden’s Daily Report}
+% Page setup and running header
+\beginpage
+\runningheader
 
 % Placeholder sections using a simple boxed style
 \sectionbox{
@@ -27,5 +28,9 @@
     SILE.typesetter:typeset("Data JSON: " .. v)
   }
 }
+
+% Footer with page number
+\pagefooter
+\endpage
 
 \end{document}

@@ -1,7 +1,7 @@
 # TODO
 
 Next up (prioritized):
-- [ ] SILE class skeleton in sile/holden-report.sil: frames, header, footer, counters
+- [x] SILE class skeleton in sile/holden-report.sil: frames, header, footer, counters
 - [ ] Lua JSON loading in SILE (vendor a pure-Lua parser, e.g., dkjson) and wire to section boxes
 - [ ] tools/build.py: expand placeholder combined JSON schema (titles, lists) and keep writing data/data.json
 - [ ] Caching scaffold in data/.cache with TTL and freshness checks
