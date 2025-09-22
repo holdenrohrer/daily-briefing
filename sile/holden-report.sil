@@ -5,9 +5,9 @@
 
 % Color palette and baseline grid
 \use[module=packages.color]
-\define[color=Ink, value=#111111]
-\define[color=Subtle, value=#666666]
-\define[color=Accent, value=#005ea5]
+\define[color=Ink]{#111111}
+\define[color=Subtle]{#666666}
+\define[color=Accent]{#005ea5}
 \set[parameter=document.baselineskip, value=12pt]
 
 % Monospace headers
