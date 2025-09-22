@@ -2,21 +2,28 @@
 \font[family=JetBrains Mono, size=10pt]
 
 % Page frames and masters
-\use[module=packages/masters]
+\use[module=packages.masters]
 \define-master[name=holden, frameset={
   header = { left = "1in", right = "7.5in", top = "0.6in", bottom = "1.0in" },
   content = { left = "1in", right = "7.5in", top = "1.1in", bottom = "10.0in" },
   footer = { left = "1in", right = "7.5in", top = "10.1in", bottom = "10.6in" }
 }]
 
+% Color palette and baseline grid
+\use[module=packages.color]
+\define[color=Ink, value=#111111]
+\define[color=Subtle, value=#666666]
+\define[color=Accent, value=#005ea5]
+\set[parameter=document.baselineskip, value=12pt]
+
 % Monospace headers
 \define[command=reporttitle]{
-  \font[family=JetBrains Mono, weight=700, size=16pt]{\process}
+  \font[family=JetBrains Mono, weight=700, size=16pt]{\color[color=Ink]{\process}}
   \par
 }
 
 \define[command=sectiontitle]{
-  \font[family=JetBrains Mono, weight=700, size=14pt]{\process}
+  \font[family=JetBrains Mono, weight=700, size=14pt]{\color[color=Ink]{\process}}
   \par
 }
 
@@ -29,7 +36,7 @@
 
 % Running header (class skeleton)
 \define[command=runningheader]{
-  \font[family=JetBrains Mono, weight=700, size=12pt]{Holden’s Daily Report}
+  \font[family=JetBrains Mono, weight=700, size=12pt]{\color[color=Accent]{Holden’s Daily Report}}
   \par
   \skip[height=0.5em]
 }
@@ -37,12 +44,12 @@
 % Footer with page number (uses SILE folio counter if available)
 \define[command=pagefooter]{
   \skip[height=1em]
-  \font[family=JetBrains Mono, size=9pt]{
+  \color[color=Subtle]{\font[family=JetBrains Mono, size=9pt]{
     Page \lua{
       local folio = (SILE and SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
       SILE.typesetter:typeset(tostring(folio))
     }
-  }
+  }}
   \par
 }
 

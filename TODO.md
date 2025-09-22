@@ -14,7 +14,7 @@ MVP typesetting (SILE):
   - [x] Opening header
   - [x] Footer with page numbers
   - [x] Running header/counters setup (page numbers via counters)
-  - [ ] Color palette (Ink, Subtle, Accent) and baseline grid spacing
+  - [x] Color palette (Ink, Subtle, Accent) and baseline grid spacing
   - [ ] Font setup (open-license fixed-width fonts) loaded from assets/fonts
 - [x] Main entrypoint sile/main.sil using the class and rendering placeholder sections
 - [x] Placeholder sections render in main.sil (temporary sans-serif header; class TBD)
