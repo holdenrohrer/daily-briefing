@@ -1,0 +1,7 @@
+\use[module=packages.framed]
+
+\define[command=sectionbox]{
+  \medskip
+  \framed[padding=8pt, align=left]{\process}
+  \medskip
+}

@@ -1,0 +1,26 @@
+\begin[papersize=letter]{document}
+\use[module=packages.runnings]
+\include[src=holden-report.sil]
+
+% Running header and footer
+\runningHeader{}{\font[size=10pt]{Holden’s Daily Report}}{}
+\runningFooter{}{\folio}{}
+
+% Placeholder sections using a simple boxed style
+\sectionbox{
+  \font[weight=700, size=14pt]{Welcome}
+  \par
+  This is a minimal placeholder for the daily report layout. Replace this text with real sections.
+}
+
+\sectionbox{
+  \font[weight=700, size=14pt]{Today’s Items}
+  \par
+  - Wikipedia front page summary (placeholder)
+  \par
+  - API spend summary (placeholder)
+  \par
+  - RSS highlights (placeholder)
+}
+
+\end{document}
