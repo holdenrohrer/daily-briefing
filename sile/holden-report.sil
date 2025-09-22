@@ -39,9 +39,9 @@
 }
 
 % Minimal frame-like vertical spacing to simulate top/bottom margins
-\define[command=beginpage]{
+\define[command=pagetop]{
   \skip[height=0.75in]
 }
-\define[command=endpage]{
+\define[command=pagebottom]{
   \skip[height=0.5in]
 }

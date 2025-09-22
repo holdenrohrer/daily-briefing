@@ -2,7 +2,7 @@
 \include[src=holden-report.sil]
 
 % Page setup and running header
-\beginpage
+\pagetop
 \runningheader
 
 % Placeholder sections using a simple boxed style
@@ -31,6 +31,6 @@
 
 % Footer with page number
 \pagefooter
-\endpage
+\pagebottom
 
 \end{document}
