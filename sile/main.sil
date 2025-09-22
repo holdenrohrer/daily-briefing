@@ -2,19 +2,16 @@
 \include[src=holden-report.sil]
 
 % Opening header (static, minimal)
-\font[family=FreeSans, weight=700, size=16pt]{Holden’s Daily Report}
-\par
+\reporttitle{Holden’s Daily Report}
 
 % Placeholder sections using a simple boxed style
 \sectionbox{
-  \font[weight=700, size=14pt]{Welcome}
-  \par
+  \sectiontitle{Welcome}
   This is a minimal placeholder for the daily report layout. Replace this text with real sections.
 }
 
 \sectionbox{
-  \font[weight=700, size=14pt]{Today’s Items}
-  \par
+  \sectiontitle{Today’s Items}
   - Wikipedia front page summary (placeholder)
   \par
   - API spend summary (placeholder)

@@ -1,4 +1,19 @@
 
+% Set a default body font to avoid fallback to Gentium Plus
+\font[family=FreeSans, size=10pt]
+
+% Monospace headers
+\define[command=reporttitle]{
+  \font[family=FreeMono, weight=700, size=16pt]{\process}
+  \par
+}
+
+\define[command=sectiontitle]{
+  \font[family=FreeMono, weight=700, size=14pt]{\process}
+  \par
+}
+
+% Simple section box wrapper
 \define[command=sectionbox]{
   \skip[height=0.75em]
   \process
