@@ -3,10 +3,10 @@
 MVP typesetting (SILE):
 - [ ] Create sile/holden-report.sil class:
   - [ ] Page size, margins, and frames for sharp boundaries
-  - [ ] Running header: “Holden’s Daily Report”
+  - [ ] Opening header
   - [ ] Footer with page numbers
   - [ ] Color palette (Ink, Subtle, Accent) and baseline grid spacing
-  - [ ] Font setup (Inter, JetBrains Mono) loaded from assets/fonts
+  - [ ] Font setup (open-license fixed-width fonts) loaded from assets/fonts
 - [ ] Main entrypoint sile/main.sil using the class and rendering placeholder sections
 - [ ] Section components:
   - [ ] A generic “section box” macro that composes title + body content
@@ -54,8 +54,7 @@ Integration:
 
 Ops & polish:
 - [ ] .gitignore: data caches, output PDFs, local secrets
-- [ ] CI or cron to generate daily
-- [ ] Error handling and fallbacks when APIs fail
+- [ ] Fail fast when APIs fail
 - [ ] Unit tests for data transforms (Python)
 - [ ] Performance: Parallel fetches, timeouts, retries with backoff
 

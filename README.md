@@ -4,9 +4,8 @@ Generate a daily PDF briefing with book-grade typography using SILE.
 
 Highlights:
 - Sharp page boundaries with precise frames.
-- Consistent running header: “Holden’s Daily Report”.
+- Stylized Front Page "Holden’s Daily Report".
 - Low-ink/low-color aesthetic with restrained accents.
-- Multiple short sections can share a page without wasting space.
 
 Planned sections:
 - Low-color version of the Wikipedia front page
@@ -20,11 +19,10 @@ Planned sections:
 Architecture (high level):
 - Data gathering (Python): Fetch, normalize, and cache content as JSON and SVG artifacts.
 - Typesetting (SILE): SILE .sil templates (with Lua) render JSON/SVG into a styled PDF.
-- Layout strategy: Explicit SILE frames for page boundaries; “section boxes” that can flow multiple short sections onto one page; running header; page numbers.
+- Layout strategy: Explicit SILE frames for page boundaries; “section boxes” that can flow multiple short sections onto one page; page numbers.
 
 Dev environment (Nix Flake):
 - Reproducible shell with SILE and Python preinstalled.
-- .env sets USE_FLAKE=true to signal flake-based workflows.
 
 Quick start:
 - nix develop
@@ -40,6 +38,7 @@ Planned directory layout:
 - data/: Cached API responses and normalized JSON
 - assets/: Fonts, icons, and generated charts (SVG preferred)
 - output/: Generated PDFs
+- generate.py: Orchestrates generation at a high-level and `--print [PRINTER_ID]` sends it to a printer
 
 Typography and color:
 - Fonts (suggested): Inter (text), JetBrains Mono (code). Place OTF/TTF in assets/fonts and load via SILE’s font configuration.
@@ -50,10 +49,6 @@ Pagination & layout:
 - Use SILE frames for sharp page edges and consistent margins.
 - Header: Running header “Holden’s Daily Report”; footer with page numbers.
 - Collate short sections using vertical boxes to avoid orphaned whitespace.
-
-Security & secrets:
-- Keep API keys in environment variables (e.g., in a local .env not committed).
-- Add network timeouts and caching to avoid rate limits.
 
 Next steps:
 - Implement a minimal SILE class with frames, header, and page numbers.
