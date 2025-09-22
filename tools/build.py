@@ -123,10 +123,14 @@ def _write_per_section_jsons() -> None:
         "https://feeds.arstechnica.com/arstechnica/index",
         "https://pluralistic.net/feed/",
     ]
+    rss_data = rss.fetch_rss(rss_feeds)
     rss_json = {
         "title": "RSS Highlights",
-        "items": rss.fetch_rss(rss_feeds),
     }
+    if isinstance(rss_data, dict):
+        rss_json.update(rss_data)
+    else:
+        rss_json["items"] = rss_data
     _write_json(Path("data/rss.json"), rss_json)
     print("[build] Wrote data/rss.json")
 

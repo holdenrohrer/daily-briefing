@@ -27,6 +27,12 @@
         return
       end
 
+      local meta = type(data.meta) == "table" and data.meta or {}
+      local hits = tostring(meta.cache_hits or 0)
+      local misses = tostring(meta.cache_misses or 0)
+      SILE.typesetter:typeset("Cache: hits " .. hits .. ", misses " .. misses)
+      SILE.call("par")
+
       local items = data.items or data
       if type(items) ~= "table" then
         SILE.typesetter:typeset("Invalid RSS JSON schema.")

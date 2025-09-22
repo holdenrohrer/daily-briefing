@@ -5,7 +5,7 @@ Next up (prioritized):
 - [x] Lua JSON loading in SILE using a standard JSON library if available (cjson/dkjson) and wire to section boxes
 - [x] Per-section pipeline skeletons: add sile/sections/* classes, per-section JSON filenames, and per-section Python modules; update tools/build.py to generate data/*.json
 - [x] Implement the RSS vertical slice end-to-end (tools/rss.py -> data/rss.json -> sile/sections/rss.sil -> PDF).
-- [ ] Caching scaffold in data/.cache with TTL and freshness checks
+- [x] Caching scaffold in data/.cache with TTL and freshness checks
 - [ ] .gitignore entries for caches and output artifacts
 
 MVP typesetting (SILE):
@@ -27,10 +27,10 @@ MVP typesetting (SILE):
 Build pipeline:
 - [x] generate.py: Minimal wrapper to invoke SILE and write output/brief.pdf
 - [x] tools/build.py: Orchestrate data fetch → JSON/SVG → call SILE to build output/brief.pdf
-- [ ] Caching layer (data/.cache) with timestamps to limit API calls
-  - [ ] Define cache key scheme and filenames in data/.cache
-  - [ ] TTL per source; skip network if fresh
-  - [ ] Utility helpers: read_cache(path) / write_cache(path, payload, meta)
+- [x] Caching layer (data/.cache) with timestamps to limit API calls
+  - [x] Define cache key scheme and filenames in data/.cache
+  - [x] TTL per source; skip network if fresh
+  - [x] Utility helpers: read_cache(path) / write_cache(path, payload, meta)
 - [ ] Config via environment variables (.env and/or dotenv) for API keys
   - [ ] Load .env via python-dotenv (fallback to os.environ)
   - [ ] Document required variables in README and provide .env.example

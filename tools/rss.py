@@ -8,6 +8,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+import os
+
+from tools.cache import read_cache, write_cache, make_key
 
 
 def _iso_now() -> str:
@@ -99,54 +102,86 @@ def _parse_atom(root: ET.Element, feed_url: str) -> tuple[str, List[Dict[str, An
     return source_title, items
 
 
-def fetch_rss(feeds: List[str], per_feed_limit: int = 5, total_limit: int = 10) -> List[Dict[str, Any]]:
+def fetch_rss(
+    feeds: List[str],
+    per_feed_limit: int = 5,
+    total_limit: int = 10,
+    ttl_s: int | None = None,
+) -> Dict[str, Any]:
     """
-    Fetch and normalize RSS/Atom feeds into a list of items:
-    { title, link, source, published (ISO8601 UTC), summary }
+    Fetch and normalize RSS/Atom feeds into a structure:
+    {
+      "items": [ { title, link, source, published (ISO8601 UTC), summary }, ... ],
+      "meta": { "cache_hits": int, "cache_misses": int, "ttl_s": int }
+    }
+    Uses a simple file cache under data/.cache/rss with TTL to avoid repeated network calls.
     """
+    ttl = int(ttl_s if ttl_s is not None else int(os.getenv("RSS_TTL", "1800")))
     all_items: List[Dict[str, Any]] = []
+    cache_hits = 0
+    cache_misses = 0
+
     for url in feeds or []:
-        try:
-            raw = _fetch_url(url, timeout=10.0)
-            root = ET.fromstring(raw)
-            tag = root.tag.lower()
-            if tag.endswith("rss") or root.find("channel") is not None:
-                _, items = _parse_rss(root, url)
-            else:
-                _, items = _parse_atom(root, url)
-            if per_feed_limit and per_feed_limit > 0:
-                items = items[:per_feed_limit]
-            all_items.extend(items)
-        except (HTTPError, URLError) as e:
-            all_items.append(
-                {
-                    "title": f"Error fetching feed",
-                    "link": url,
-                    "source": urlparse(url).netloc,
-                    "published": _iso_now(),
-                    "summary": f"{e.__class__.__name__}: {e.reason if hasattr(e, 'reason') else str(e)}",
-                }
-            )
-        except ET.ParseError as e:
-            all_items.append(
-                {
-                    "title": "Error parsing feed XML",
-                    "link": url,
-                    "source": urlparse(url).netloc,
-                    "published": _iso_now(),
-                    "summary": str(e),
-                }
-            )
-        except Exception as e:
-            all_items.append(
-                {
-                    "title": "Unexpected error fetching feed",
-                    "link": url,
-                    "source": urlparse(url).netloc,
-                    "published": _iso_now(),
-                    "summary": str(e),
-                }
-            )
+        key = make_key(url)
+        cached, _meta = read_cache("rss", key, ttl)
+        if cached is not None:
+            items = cached
+            cache_hits += 1
+        else:
+            cache_misses += 1
+            items = []
+            try:
+                raw = _fetch_url(url, timeout=10.0)
+                root = ET.fromstring(raw)
+                tag = root.tag.lower()
+                if tag.endswith("rss") or root.find("channel") is not None:
+                    _, items = _parse_rss(root, url)
+                else:
+                    _, items = _parse_atom(root, url)
+                if per_feed_limit and per_feed_limit > 0:
+                    items = items[:per_feed_limit]
+                # Write successful fetch to cache
+                write_cache("rss", key, items, ttl)
+            except (HTTPError, URLError) as e:
+                items.append(
+                    {
+                        "title": "Error fetching feed",
+                        "link": url,
+                        "source": urlparse(url).netloc,
+                        "published": _iso_now(),
+                        "summary": f"{e.__class__.__name__}: {e.reason if hasattr(e, 'reason') else str(e)}",
+                    }
+                )
+            except ET.ParseError as e:
+                items.append(
+                    {
+                        "title": "Error parsing feed XML",
+                        "link": url,
+                        "source": urlparse(url).netloc,
+                        "published": _iso_now(),
+                        "summary": str(e),
+                    }
+                )
+            except Exception as e:
+                items.append(
+                    {
+                        "title": "Unexpected error fetching feed",
+                        "link": url,
+                        "source": urlparse(url).netloc,
+                        "published": _iso_now(),
+                        "summary": str(e),
+                    }
+                )
+        all_items.extend(items)
+
     if total_limit and total_limit > 0:
-        return all_items[:total_limit]
-    return all_items
+        all_items = all_items[:total_limit]
+
+    return {
+        "items": all_items,
+        "meta": {
+            "cache_hits": cache_hits,
+            "cache_misses": cache_misses,
+            "ttl_s": ttl,
+        },
+    }
