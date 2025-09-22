@@ -13,10 +13,10 @@
 \frame[id=content, x=1in, y=1in, width=6.5in, height=8.75in]
 \frame[id=footer, x=1in, y=0.5in, width=6.5in, height=0.5in]
 
-\set[parameter=frame, value=header]
+\switchFrame[id=header]
 \runningheader
 
-\set[parameter=frame, value=content]
+\switchFrame[id=content]
 \loaddata
 
 % Placeholder sections using a simple boxed style
@@ -58,7 +58,7 @@
 \weathersection
 
 % Footer with page number
-\set[parameter=frame, value=footer]
+\switchFrame[id=footer]
 \pagefooter
 
 \end{document}
