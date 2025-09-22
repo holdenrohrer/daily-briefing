@@ -2,5 +2,7 @@
 .direnv
 **/__pycache__
 
-output/
-data/
+output/*
+data/*
+!output/.gitkeep
+!data/.gitkeep
