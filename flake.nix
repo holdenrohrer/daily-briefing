@@ -37,7 +37,7 @@
             pkgs.curl
             pkgs.jq
             pkgs.fontconfig
-            pkgs.jetbrains-mono
+            jbMonoTtf
           ];
           FONTCONFIG_FILE = fontsConf;
           shellHook = ''
