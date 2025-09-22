@@ -20,9 +20,15 @@ MVP typesetting (SILE):
 - [x] Placeholder sections render in main.sil (temporary sans-serif header; class TBD)
 - [ ] Section components:
   - [x] A generic “section box” macro that composes title + body content
-  - [ ] Automatic collation of short section boxes onto the same page
-  - [ ] Section box variants: list, table, paragraph
-  - [ ] A flow-sections macro to pack multiple boxes with vertical glue and keep-with-next
+  - [ ] Section header keep with section body.
+  - [ ] Glue between section title and section body
+  - [ ] Glue so that if there is only 30% of space left on a page, and the current section can't fit, skip to the next page
+- [ ] Overall report look:
+  - [ ] tools/build.py option to enable visible debug boxes on output/brief.pdf
+  - [ ] Remove indent from section headers and paragraphs
+  - [ ] Don't use bullet points, use spacing between list items
+  - [ ] Right running header with day of week and current date in ISO-8601
+  - [ ] Light gold rectangle border around each sectionbox
 
 Build pipeline:
 - [x] generate.py: Minimal wrapper to invoke SILE and write output/brief.pdf
