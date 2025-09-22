@@ -182,9 +182,10 @@ def _write_per_section_jsons() -> None:
     print("[build] Wrote data/weather.json")
 
 
-def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path) -> int:
+def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: bool) -> int:
     env = os.environ.copy()
     env["REPORT_DATA_JSON"] = str(data_json.resolve())
+    env["REPORT_DEBUG_BOXES"] = "1" if debug_boxes else "0"
     _ensure_dir(output_pdf.parent)
     cmd = ["sile", "-o", str(output_pdf), str(sile_main)]
     print(f"[build] Running: {' '.join(cmd)}")
@@ -258,6 +259,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Only build data JSON; do not run SILE.",
     )
+    p.add_argument(
+        "--debug-boxes",
+        dest="debug_boxes",
+        action="store_true",
+        default=True,
+        help="Enable SILE debug frame boxes (default: on).",
+    )
+    p.add_argument(
+        "--no-debug-boxes",
+        dest="debug_boxes",
+        action="store_false",
+        help="Disable SILE debug frame boxes.",
+    )
     return p.parse_args(argv)
 
 
@@ -292,7 +306,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    return _run_sile(sile_main=sile_main, output_pdf=output_pdf, data_json=data_json)
+    return _run_sile(
+        sile_main=sile_main,
+        output_pdf=output_pdf,
+        data_json=data_json,
+        debug_boxes=bool(args.debug_boxes),
+    )
 
 
 if __name__ == "__main__":

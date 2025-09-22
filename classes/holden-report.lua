@@ -48,6 +48,8 @@ function class:_init (options)
     insertInto = "footnotes",
     stealFrom = { "content" },
   })
+  -- Standard debug package (used to show frames when enabled via env)
+  self:loadPackage("debug")
 
   -- Disable any default folio rendering; footer will be handled by our macro.
   SILE.scratch.counters = SILE.scratch.counters or {}
@@ -81,6 +83,17 @@ function class:endPage ()
       SILE.call("par")
     end
   end)
+
+  -- Optionally overlay frame outlines using the standard debug package
+  local dbg = os.getenv("REPORT_DEBUG_BOXES")
+  if dbg and dbg ~= "" and dbg ~= "0" and dbg ~= "false" then
+    local frames = { "content", "runningHead", "folio", "footnotes" }
+    for _, fname in ipairs(frames) do
+      pcall(function()
+        SILE.call("showframe", { frame = fname })
+      end)
+    end
+  end
 
   return plain.endPage(self)
 end
