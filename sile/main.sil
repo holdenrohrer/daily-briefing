@@ -1,10 +1,9 @@
 \begin[papersize=letter]{document}
-\use[module=packages.runnings]
 \include[src=holden-report.sil]
 
-% Running header and footer
-\runningHeader{}{\font[size=10pt]{Holden’s Daily Report}}{}
-\runningFooter{}{\folio}{}
+% Opening header (static, minimal)
+\font[weight=700, size=16pt]{Holden’s Daily Report}
+\par
 
 % Placeholder sections using a simple boxed style
 \sectionbox{
