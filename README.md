@@ -33,7 +33,7 @@ Planned directory layout:
 - sile/: SILE classes, packages, and main document templates
   - sile/main.sil (entrypoint)
   - sile/holden-report.sil (class: frames, header, footer, colors, fonts)
-  - sile/components/*.sil (reusable section renderers)
+  - sile/components/\*.sil (reusable section renderers)
 - tools/: Python scripts to fetch data, cache it, and render SILE input
 - data/: Cached API responses and normalized JSON
 - assets/: Fonts, icons, and generated charts (SVG preferred)
@@ -41,7 +41,7 @@ Planned directory layout:
 - generate.py: Orchestrates generation at a high-level and `--print [PRINTER_ID]` sends it to a printer
 
 Typography and color:
-- Fonts (suggested): Inter (text), JetBrains Mono (code). Place OTF/TTF in assets/fonts and load via SILE’s font configuration.
+- Fonts: JetBrains Mono everywhere, in headers and body.
 - Palette: Define named colors once (e.g., Ink, Subtle, Accent) in a SILE package and reuse across components.
 - Microtypography: Use SILE’s default features and tweak as needed (tracking, protrusion, hyphenation).
 
