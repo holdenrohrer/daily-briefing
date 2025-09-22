@@ -9,13 +9,13 @@ Next up (prioritized):
 - [x] .gitignore entries for caches and output artifacts
 
 MVP typesetting (SILE):
-- [ ] Create sile/holden-report.sil class:
+- [x] Create sile/holden-report.sil class:
   - [x] Page size, margins, and frames for sharp boundaries
   - [x] Opening header
   - [x] Footer with page numbers
   - [x] Running header/counters setup (page numbers via counters)
   - [x] Color palette (Ink, Subtle, Accent) and baseline grid spacing
-  - [ ] Font setup (open-license fixed-width fonts) loaded from assets/fonts
+  - [x] Font setup (JetBrains Mono) loaded from environment.
 - [x] Main entrypoint sile/main.sil using the class and rendering placeholder sections
 - [x] Placeholder sections render in main.sil (temporary sans-serif header; class TBD)
 - [ ] Section components:
