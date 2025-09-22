@@ -189,7 +189,7 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path) -> int:
     cmd = ["sile", "-o", str(output_pdf), str(sile_main)]
     print(f"[build] Running: {' '.join(cmd)}")
     try:
-        proc = subprocess.run(cmd, env=env, check=False)
+        proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
     except FileNotFoundError:
         print(
             "[build] ERROR: 'sile' not found on PATH. "
@@ -197,11 +197,38 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path) -> int:
             file=sys.stderr,
         )
         return 127
-    if proc.returncode != 0:
-        print(
-            f"[build] SILE exited with {proc.returncode}", file=sys.stderr
+
+    # Echo SILE output after process exits (keeps logs visible in CI/hooks)
+    stdout = proc.stdout or ""
+    stderr = proc.stderr or ""
+    if stdout:
+        print(stdout, end="")
+    if stderr:
+        print(stderr, end="", file=sys.stderr)
+
+    # Heuristic: Treat known SILE error patterns as failure even if exit code is 0
+    def _looks_like_sile_error(s: str) -> bool:
+        if not s:
+            return False
+        return (
+            "Error:" in s
+            or "runtime error" in s
+            or "\n! " in s
+            or s.startswith("! ")
+            or "Unknown command" in s
         )
-    return proc.returncode
+
+    rc = proc.returncode
+    if rc == 0 and (_looks_like_sile_error(stdout) or _looks_like_sile_error(stderr)):
+        print(
+            "[build] Detected SILE error patterns but exit code was 0; treating as failure",
+            file=sys.stderr,
+        )
+        rc = 1
+
+    if rc != 0:
+        print(f"[build] SILE exited with {rc}", file=sys.stderr)
+    return rc
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
