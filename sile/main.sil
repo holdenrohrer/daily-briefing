@@ -2,7 +2,7 @@
 \include[src=holden-report.sil]
 
 % Opening header (static, minimal)
-\font[weight=700, size=16pt]{Holden’s Daily Report}
+\font[family=FreeSans, weight=700, size=16pt]{Holden’s Daily Report}
 \par
 
 % Placeholder sections using a simple boxed style

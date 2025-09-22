@@ -8,11 +8,13 @@ MVP typesetting (SILE):
   - [ ] Color palette (Ink, Subtle, Accent) and baseline grid spacing
   - [ ] Font setup (open-license fixed-width fonts) loaded from assets/fonts
 - [ ] Main entrypoint sile/main.sil using the class and rendering placeholder sections
+- [x] Placeholder sections render in main.sil (temporary sans-serif header; class TBD)
 - [ ] Section components:
-  - [ ] A generic “section box” macro that composes title + body content
+  - [x] A generic “section box” macro that composes title + body content
   - [ ] Automatic collation of short section boxes onto the same page
 
 Build pipeline:
+- [x] generate.py: Minimal wrapper to invoke SILE and write output/brief.pdf
 - [ ] tools/build.py: Orchestrate data fetch → JSON/SVG → call SILE to build output/brief.pdf
 - [ ] Caching layer (data/.cache) with timestamps to limit API calls
 - [ ] Config via environment variables (.env and/or dotenv) for API keys
