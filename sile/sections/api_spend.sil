@@ -1,0 +1,7 @@
+% API Spend section class (placeholder)
+\define[command=apispendsection]{
+  \sectionbox{
+    \sectiontitle{API Spend (Yesterday)}
+    Using data/api_spend.json (placeholder)
+  }
+}

@@ -1,5 +1,12 @@
 \begin[papersize=letter]{document}
 \include[src=holden-report.sil]
+\include[src=sections/rss.sil]
+\include[src=sections/wikipedia.sil]
+\include[src=sections/api_spend.sil]
+\include[src=sections/youtube.sil]
+\include[src=sections/facebook.sil]
+\include[src=sections/caldav.sil]
+\include[src=sections/weather.sil]
 
 % Page setup and running header
 \pagetop
@@ -34,6 +41,15 @@
   \sectiontitle{Data Summary}
   \renderdataoverview
 }
+
+% Per-section placeholders (reading individual JSON files)
+\rsssection
+\wikipediasection
+\apispendsection
+\youtubesection
+\facebooksection
+\caldavsection
+\weathersection
 
 % Footer with page number
 \pagefooter

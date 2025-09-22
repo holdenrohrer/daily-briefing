@@ -22,6 +22,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
+from tools import caldav, facebook, rss, spend, weather as weather_mod, wiki, youtube
 
 
 def _iso_now() -> str:
@@ -109,6 +110,69 @@ def _build_placeholder_data() -> Dict[str, Any]:
     }
     return data
 
+def _write_per_section_jsons() -> None:
+    """
+    Write per-section placeholder JSON files under data/.
+    """
+    # RSS
+    rss_feeds = [
+        "https://feeds.arstechnica.com/arstechnica/index",
+        "https://pluralistic.net/feed/",
+    ]
+    rss_json = {
+        "title": "RSS Highlights",
+        "items": rss.fetch_rss(rss_feeds),
+    }
+    _write_json(Path("data/rss.json"), rss_json)
+    print("[build] Wrote data/rss.json")
+
+    # Wikipedia
+    wiki_json = wiki.fetch_front_page()
+    _write_json(Path("data/wikipedia.json"), wiki_json)
+    print("[build] Wrote data/wikipedia.json")
+
+    # API Spend
+    yesterday = datetime.now(timezone.utc).date().isoformat()
+    spend_json = spend.summarize_spend(yesterday)
+    _write_json(Path("data/api_spend.json"), spend_json)
+    print("[build] Wrote data/api_spend.json")
+
+    # YouTube
+    yt_channels: list[str] = []
+    yt_json = {
+        "title": "YouTube",
+        "items": youtube.fetch_videos(yt_channels),
+    }
+    _write_json(Path("data/youtube.json"), yt_json)
+    print("[build] Wrote data/youtube.json")
+
+    # Facebook
+    fb_pages: list[str] = []
+    fb_json = {
+        "title": "Facebook",
+        "items": facebook.fetch_posts(fb_pages),
+    }
+    _write_json(Path("data/facebook.json"), fb_json)
+    print("[build] Wrote data/facebook.json")
+
+    # CALDAV
+    cal_json = {
+        "title": "Today’s Events",
+        "items": caldav.fetch_events(yesterday),
+    }
+    _write_json(Path("data/caldav.json"), cal_json)
+    print("[build] Wrote data/caldav.json")
+
+    # Weather (ensure placeholder SVG exists)
+    svg_meta = weather_mod.build_daily_svg(Path("assets/charts/weather.svg"))
+    weather_json = {
+        "title": "Weather",
+        "svg_path": svg_meta["svg_path"],
+        "items": [],
+    }
+    _write_json(Path("data/weather.json"), weather_json)
+    print("[build] Wrote data/weather.json")
+
 
 def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path) -> int:
     env = os.environ.copy()
@@ -181,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     data = _build_placeholder_data()
     _write_json(data_json, data)
     print(f"[build] Wrote {data_json}")
+    _write_per_section_jsons()
 
     if args.skip_sile:
         return 0

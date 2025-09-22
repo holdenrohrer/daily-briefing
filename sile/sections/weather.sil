@@ -1,0 +1,7 @@
+% Weather section class (placeholder)
+\define[command=weathersection]{
+  \sectionbox{
+    \sectiontitle{Weather}
+    Using data/weather.json (placeholder)
+  }
+}

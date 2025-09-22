@@ -1,0 +1,7 @@
+% RSS section class (placeholder)
+\define[command=rsssection]{
+  \sectionbox{
+    \sectiontitle{RSS Highlights}
+    Using data/rss.json (placeholder)
+  }
+}
