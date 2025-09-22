@@ -8,9 +8,9 @@
 \include[src=sections/caldav.sil]
 \include[src=sections/weather.sil]
 
-% Configure per-page running header and footer (book class)
-\runningHeader{}{\hrHeader}{}
-\runningFooter{}{\Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}}{}
+% Configure per-page running head and foot (book class frames)
+\runningHead{}{\hrHeader}{}
+\runningFoot{}{\Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}}{}
 
 % Load shared data state (JSON lib and path)
 \loaddata
