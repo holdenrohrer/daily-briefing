@@ -7,14 +7,19 @@
 \use[module=packages.color]
 \set[parameter=document.baselineskip, value=12pt]
 
+% Theme wrappers (single source of colors)
+\define[command=Ink]{\color[color=#111111]{\process}}
+\define[command=Subtle]{\color[color=#666666]{\process}}
+\define[command=Accent]{\color[color=#005ea5]{\process}}
+
 % Monospace headers
 \define[command=reporttitle]{
-  \font[family=JetBrains Mono, weight=700, size=16pt]{\color[color=#111111]{\process}}
+  \font[family=JetBrains Mono, weight=700, size=16pt]{\Ink{\process}}
   \par
 }
 
 \define[command=sectiontitle]{
-  \font[family=JetBrains Mono, weight=700, size=14pt]{\color[color=#111111]{\process}}
+  \font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
   \par
 }
 
@@ -27,7 +32,7 @@
 
 % Running header (class skeleton)
 \define[command=runningheader]{
-  \font[family=JetBrains Mono, weight=700, size=12pt]{\color[color=#005ea5]{Holden’s Daily Report}}
+  \font[family=JetBrains Mono, weight=700, size=12pt]{\Accent{Holden’s Daily Report}}
   \par
   \skip[height=0.5em]
 }
@@ -35,7 +40,7 @@
 % Footer with page number (uses SILE folio counter if available)
 \define[command=pagefooter]{
   \skip[height=1em]
-  \color[color=#666666]{\font[family=JetBrains Mono, size=9pt]{
+  \Subtle{\font[family=JetBrains Mono, size=9pt]{
     Page \lua{
       local folio = (SILE and SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
       SILE.typesetter:typeset(tostring(folio))
