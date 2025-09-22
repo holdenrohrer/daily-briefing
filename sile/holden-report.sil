@@ -1,15 +1,15 @@
 
-% Set a default body font to avoid fallback to Gentium Plus
-\font[family=FreeSans, size=10pt]
+% Set a default monospace body font (JetBrains Mono)
+\font[family=JetBrains Mono, size=10pt]
 
 % Monospace headers
 \define[command=reporttitle]{
-  \font[family=FreeMono, weight=700, size=16pt]{\process}
+  \font[family=JetBrains Mono, weight=700, size=16pt]{\process}
   \par
 }
 
 \define[command=sectiontitle]{
-  \font[family=FreeMono, weight=700, size=14pt]{\process}
+  \font[family=JetBrains Mono, weight=700, size=14pt]{\process}
   \par
 }
 

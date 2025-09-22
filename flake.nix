@@ -30,6 +30,7 @@
             pkgs.curl
             pkgs.jq
             pkgs.gnu-free-fonts
+            pkgs.jetbrains-mono
           ];
           shellHook = ''
             echo "Dev shell ready: SILE $(sile --version | head -n1)"
