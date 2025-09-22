@@ -81,7 +81,6 @@ Integration:
   - [x] Write placeholder combined JSON to data/data.json in tools/build.py
   - [x] Pass the JSON path to SILE via REPORT_DATA_JSON env
   - [ ] Merge real data from fetchers into the combined schema
-  - [ ] Define and document a JSON schema (data/schema.json) for sections
 - [ ] In SILE, use Lua to read and map JSON to section boxes:
   - [x] Access path via REPORT_DATA_JSON in a placeholder section
   - [ ] Vendor a pure-Lua JSON parser (e.g., dkjson.lua) into sile/lib/json.lua
@@ -92,13 +91,6 @@ Integration:
 Ops & polish:
 - [ ] .gitignore: data caches, output PDFs, local secrets
 - [ ] Fail fast when APIs fail
-- [ ] Unit tests for data transforms (Python)
-  - [ ] Add pytest with basic fixtures for RSS/Wiki parsing
-  - [ ] Test caching TTL and idempotent writes
-- [ ] Performance: Parallel fetches, timeouts, retries with backoff
-  - [ ] Use asyncio or ThreadPool for I/O-bound fetches
-  - [ ] Add per-request timeouts and limited retries with backoff
-- [ ] Pre-commit hooks (flake8) and basic lint config
 
 Notes/decisions:
 - Low-color aesthetic: grayscale + one accent color
