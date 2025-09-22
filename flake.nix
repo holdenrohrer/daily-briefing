@@ -21,7 +21,13 @@
           pillow
           pyyaml
         ]);
-        fontsConf = pkgs.makeFontsConf { fontDirectories = [ pkgs.jetbrains-mono ]; };
+        jbMonoTtf = pkgs.runCommand "jetbrains-mono-ttf-only" {} ''
+          set -eu
+          outdir="$out/share/fonts/truetype"
+          mkdir -p "$outdir"
+          find ${pkgs.jetbrains-mono}/share/fonts -type f \( -iname '*.ttf' -o -iname '*.otf' \) -exec cp -v '{}' "$outdir/" \;
+        '';
+        fontsConf = pkgs.makeFontsConf { fontDirectories = [ jbMonoTtf ]; };
       in {
         devShells.default = pkgs.mkShell {
           packages = [
@@ -35,6 +41,7 @@
           ];
           FONTCONFIG_FILE = fontsConf;
           shellHook = ''
+            fc-cache -f >/dev/null 2>&1 || true
             echo "Dev shell ready: SILE $(sile --version | head -n1)"
           '';
         };
