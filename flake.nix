@@ -21,6 +21,7 @@
           pillow
           pyyaml
         ]);
+        fontsConf = pkgs.makeFontsConf { fontDirectories = [ pkgs.jetbrains-mono ]; };
       in {
         devShells.default = pkgs.mkShell {
           packages = [
@@ -29,9 +30,10 @@
             pkgs.git
             pkgs.curl
             pkgs.jq
-            pkgs.gnu-free-fonts
+            pkgs.fontconfig
             pkgs.jetbrains-mono
           ];
+          FONTCONFIG_FILE = fontsConf;
           shellHook = ''
             echo "Dev shell ready: SILE $(sile --version | head -n1)"
           '';
