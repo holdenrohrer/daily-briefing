@@ -31,7 +31,7 @@
             pkgs.jq
           ];
           shellHook = ''
-            export USE_FLAKE=${USE_FLAKE:-true}
+            export USE_FLAKE=''${USE_FLAKE:-true}
             echo "Dev shell ready: SILE $(sile --version | head -n1)"
           '';
         };
