@@ -21,6 +21,7 @@
 \define[command=sectiontitle]{
   \font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
   \par
+  \lua{ SILE.typesetter:pushPenalty(10000) }
 }
 
 % Simple section box wrapper

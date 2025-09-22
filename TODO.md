@@ -20,7 +20,7 @@ MVP typesetting (SILE):
 - [x] Placeholder sections render in main.sil (temporary sans-serif header; class TBD)
 - [ ] Section components:
   - [x] A generic “section box” macro that composes title + body content
-  - [ ] Section header keep with section body.
+  - [x] Section header keep with section body.
   - [ ] Glue between section title and section body
   - [ ] Glue so that if there is only 30% of space left on a page, and the current section can't fit, skip to the next page
 - [ ] Overall report look:
