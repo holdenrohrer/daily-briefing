@@ -47,6 +47,14 @@
   \par
 }
 
+% Helper: typeset the current page number (folio) safely
+\define[command=hrPageNum]{
+  \lua{
+    local folio = (SILE and SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
+    SILE.typesetter:typeset(tostring(folio))
+  }
+}
+
 % Minimal frame-like vertical spacing to simulate top/bottom margins
 \define[command=pagetop]{
   \skip[height=0.75in]
