@@ -70,73 +70,6 @@ def _text(el: ET.Element | None, tag: str) -> str:
     return ""
 
 
-def _parse_rss(root: ET.Element, feed_url: str) -> tuple[str, List[Dict[str, Any]]]:
-    channel = root.find("channel")
-    source_title = _text(channel, "title") if channel is not None else urlparse(feed_url).netloc
-    source_host = urlparse(feed_url).netloc
-    source_slug = _slugify(source_title or source_host)
-    items: List[Dict[str, Any]] = []
-    for item in root.findall(".//item"):
-        title = _text(item, "title") or "(untitled)"
-        link = _text(item, "link") or feed_url
-        pub = _text(item, "pubDate")
-        desc = _text(item, "description")
-        items.append(
-            {
-                "title": unescape(title),
-                "link": link,
-                "source": source_title,
-                "source_slug": source_slug,
-                "source_host": source_host,
-                "slug": _slugify(title),
-                "published": _safe_iso(pub),
-                "summary": unescape(desc or ""),
-            }
-        )
-    return source_title, items
-
-
-def _parse_atom(root: ET.Element, feed_url: str) -> tuple[str, List[Dict[str, Any]]]:
-    ns = {"atom": "http://www.w3.org/2005/Atom"}
-    title_el = root.find("atom:title", ns)
-    source_title = (title_el.text or "").strip() if title_el is not None and title_el.text else urlparse(feed_url).netloc
-    source_host = urlparse(feed_url).netloc
-    source_slug = _slugify(source_title or source_host)
-    items: List[Dict[str, Any]] = []
-    for entry in root.findall("atom:entry", ns):
-        etitle = entry.find("atom:title", ns)
-        title = (etitle.text or "").strip() if etitle is not None and etitle.text else "(untitled)"
-        link = feed_url
-        for l in entry.findall("atom:link", ns):
-            rel = l.get("rel", "alternate")
-            href = l.get("href")
-            if rel == "alternate" and href:
-                link = href
-                break
-            if href:
-                link = href
-        published = entry.find("atom:published", ns)
-        updated = entry.find("atom:updated", ns)
-        pub = (published.text or "").strip() if published is not None and published.text else (
-            (updated.text or "").strip() if updated is not None and updated.text else ""
-        )
-        summary_el = entry.find("atom:summary", ns) or entry.find("atom:content", ns)
-        summary = (summary_el.text or "").strip() if summary_el is not None and summary_el.text else ""
-        items.append(
-            {
-                "title": unescape(title),
-                "link": link,
-                "source": source_title,
-                "source_slug": source_slug,
-                "source_host": source_host,
-                "slug": _slugify(title),
-                "published": _safe_iso(pub),
-                "summary": unescape(summary),
-            }
-        )
-    return source_title, items
-
-
 def fetch_rss(
     feeds: List[str] | None = None,
     per_feed_limit: int = 5,
@@ -217,15 +150,6 @@ def fetch_rss(
                                 "summary": summary,
                             }
                         )
-
-                if not parsed_items:
-                    # Fallback to minimal XML parsing
-                    root = ET.fromstring(raw)
-                    tag = root.tag.lower()
-                    if tag.endswith("rss") or root.find("channel") is not None:
-                        _, parsed_items = _parse_rss(root, url)
-                    else:
-                        _, parsed_items = _parse_atom(root, url)
 
                 items = parsed_items
                 if per_feed_limit and per_feed_limit > 0:

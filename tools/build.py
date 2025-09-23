@@ -381,10 +381,7 @@ def main(argv: list[str] | None = None) -> int:
     now_dt = datetime.now(timezone.utc)
     last_official_dt = _read_last_official()
     default_cutoff_dt = now_dt - timedelta(hours=48)
-    if last_official_dt and last_official_dt > default_cutoff_dt:
-        cutoff_dt = last_official_dt
-    else:
-        cutoff_dt = default_cutoff_dt
+    cutoff_dt = max(last_official_dt, default_cutoff_dt) # whichever is more recent
     cutoff_iso = cutoff_dt.isoformat()
 
     _write_per_section_jsons(verbose=bool(args.verbose), cutoff_iso=cutoff_iso, official=bool(args.official))
