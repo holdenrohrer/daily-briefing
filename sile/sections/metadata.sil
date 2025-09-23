@@ -3,39 +3,18 @@
   \font[weight=200,size=9pt]{
     \novbreak
     \lua{
-      local jsonlib
-      pcall(function() jsonlib = require("dkjson") end)
-      if not jsonlib then pcall(function() jsonlib = require("cjson") end) end
-
-      local function readfile(path)
-        local f = io.open(path, "rb")
-        if not f then return nil end
-        local s = f:read("*a")
-        f:close()
-        return s
-      end
+      local loader = SILE and SILE.scratch and SILE.scratch.load_json_file
 
       local function typesetLine(s)
         SILE.typesetter:typeset(s)
         SILE.call("par")
       end
 
-      local function decode_json(s)
-        if not s or not jsonlib then return nil end
-        if jsonlib.decode then
-          local ok, data = pcall(jsonlib.decode, s)
-          if ok then return data end
-          return nil
-        elseif jsonlib.decode_json then
-          local ok, data = pcall(jsonlib.decode_json, s)
-          if ok then return data end
-          return nil
-        end
-        return nil
+      local data
+      if loader then
+        local ok, res = pcall(loader, "data/metadata.json")
+        if ok then data = res end
       end
-
-      local content = readfile("data/metadata.json")
-      local data = decode_json(content)
 
       if type(data) == "table" then
         typesetLine("Metadata")
