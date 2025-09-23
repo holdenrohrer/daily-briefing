@@ -53,7 +53,7 @@
       local midGap = options.midgap or "0.4em"
       local bottomGap = options.bottomgap or "0.35em"
 
-      SILE.call("needspace")
+      -- No needspace here: avoid forcing a page break before each sectionbox
       SILE.call("skip", { height = topGap })
       SILE.call("Gold", {}, function ()
         SILE.call("hrule", { height = borderw, width = "100%lw" })
@@ -63,6 +63,7 @@
       local ts = SILE.typesetter
       if ts and ts.liner then
         local bw = toNum(SU.cast("length", borderw))
+        local ex = toNum(SU.cast("length", options.fudge or "0.3em"))
         ts:liner("sectionbox", content, function (self, typesetter, line)
           local x = (typesetter.frame and typesetter.frame.state and typesetter.frame.state.cursorX) or 0
           local y = (typesetter.frame and typesetter.frame.state and typesetter.frame.state.cursorY) or 0
@@ -72,8 +73,8 @@
 
           -- Draw side borders for this line
           SILE.outputter:pushColor(color)
-          SILE.outputter:drawRule(x, y - h, bw, h + d)
-          SILE.outputter:drawRule(x + w - bw, y - h, bw, h + d)
+          SILE.outputter:drawRule(x, y - h - ex, bw, h + d + 2*ex)
+          SILE.outputter:drawRule(x + w - bw, y - h - ex, bw, h + d + 2*ex)
           SILE.outputter:popColor()
 
           -- Output the actual line content
@@ -89,7 +90,6 @@
         SILE.call("hrule", { height = borderw, width = "100%lw" })
       end)
       SILE.call("skip", { height = bottomGap })
-      SILE.call("break")
     end)
   end
 }
