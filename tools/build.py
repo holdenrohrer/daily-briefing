@@ -185,9 +185,10 @@ def _write_per_section_jsons() -> None:
 def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: bool) -> int:
     env = os.environ.copy()
     env["REPORT_DATA_JSON"] = str(data_json.resolve())
-    env["REPORT_DEBUG_BOXES"] = "1" if debug_boxes else "0"
     _ensure_dir(output_pdf.parent)
-    cmd = ["sile", "-o", str(output_pdf), str(sile_main)]
+    if_debug_boxes = []
+    cmd = ["sile", *if_debug_boxes, "-o", str(output_pdf), '--', str(sile_main)]
+    print(cmd)
     print(f"[build] Running: {' '.join(cmd)}")
     try:
         proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
