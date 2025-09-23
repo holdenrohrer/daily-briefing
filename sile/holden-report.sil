@@ -61,28 +61,19 @@
   class:registerCommand("itemize", function (options, content)
     local sep = options.itemsep or SILE.scratch.hr_list.itemsep_default
 
-    -- Save any existing class-level \item to restore after processing.
-    local prevItem = nil
-    if class._registeredCommands and class._registeredCommands["item"] then
-      prevItem = class._registeredCommands["item"]
-    end
-
-    -- Temporarily override \item within this command only.
-    class:registerCommand("item", function (opts, cont)
+    -- Temporarily override \item within this list only (dynamic scope).
+    local oldItem = SILE.Commands["item"]
+    SILE.Commands["item"] = function (opts, cont)
       _hr_noindent()
       SILE.process(cont)
       SILE.call("par")
       SILE.call("skip", { height = sep })
-    end)
+    end
 
     SILE.process(content)
 
-    -- Restore original \item in this class (or clear override).
-    if prevItem then
-      class:registerCommand("item", prevItem)
-    elseif class._registeredCommands then
-      class._registeredCommands["item"] = nil
-    end
+    -- Restore original \item
+    SILE.Commands["item"] = oldItem
   end)
 }
 
@@ -91,15 +82,10 @@
   \skip[height=0pt plus 1000pt]
 }
 
-% Running header: Right-aligned day-of-week and ISO date (e.g., Monday 2025-09-22)
+% Running header: Left title + right-aligned ISO date
 \define[command=hrHeader]{
-  \lua{
-    local text = os.date("%A %Y-%m-%d")
-    SILE.call("font", { family = "JetBrains Mono", weight = 700, size = "12pt" }, function()
-      SILE.call("Accent", {}, function()
-        SILE.typesetter:typeset(text)
-      end)
-    end)
+  \font[family=JetBrains Mono, weight=700, size=12pt]{
+    \Accent{Holden’s Daily Report}\hfill\Accent{\lua{ SILE.typesetter:typeset(os.date("%A %Y-%m-%d")) }}
   }
 }
 

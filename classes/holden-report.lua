@@ -21,7 +21,7 @@ class.defaultFrameset = {
     bottom = "bottom(footnotes)+5%ph",
   },
   runningHead = {
-    left = "60%pw",
+    left = "left(content)",
     right = "right(content)",
     top = "top(content)-8%ph",
     bottom = "top(content)-3%ph",
