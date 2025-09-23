@@ -35,7 +35,10 @@
 \weathersection
 
 \lua{
-    SILE.typesetter:pushVglue(SILE.types.node.vglue(SILE.types.length(0, 1e26, 0)))
+    SILE.registerCommand("vfilll", function (_, _)
+      SILE.typesetter:pushVglue(SILE.types.node.vglue(SILE.types.length(0, 1e26, 0)))
+    end)
 }
+\vfilll
 \font[size=7pt]{\metadatasection}
 \end{document}
