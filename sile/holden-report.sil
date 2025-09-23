@@ -8,7 +8,7 @@
 \use[module=packages.lists]
 \use[module=packages.rules]
 % \use[module=packages.framebox] (disabled; using fallback sectionbox)
-\set[parameter=document.baselineskip, value=0pt]
+\set[parameter=document.baselineskip, value=12pt]
 \set[parameter=document.parindent, value=0pt]
 \set[parameter=current.parindent, value=0pt]
 
