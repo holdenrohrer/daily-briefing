@@ -34,7 +34,7 @@
 \caldavsection
 \weathersection
 
-\verticalfill
+\vfill
 \metadatasection
 
 % End of document
