@@ -37,11 +37,18 @@
             pkgs.curl
             pkgs.jq
             pkgs.fontconfig
+            pkgs.luarocks
             jbMonoTtf
           ];
           FONTCONFIG_FILE = fontsConf;
           shellHook = ''
             fc-cache -f >/dev/null 2>&1 || true
+            # Ensure SILE framebox package is available locally for \use[module=packages.framebox]
+            mkdir -p sile/lua_modules
+            if ! luarocks --lua-version 5.1 --tree sile/lua_modules show framebox.sile >/dev/null 2>&1; then
+              echo "Installing LuaRock framebox.sile into sile/lua_modules (Lua 5.1)..."
+              luarocks --lua-version 5.1 --tree sile/lua_modules install framebox.sile || true
+            fi
             echo "Dev shell ready: SILE $(sile --version | head -n1)"
           '';
         };

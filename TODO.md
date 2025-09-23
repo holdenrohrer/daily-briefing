@@ -29,7 +29,7 @@ MVP typesetting (SILE):
   - [x] Remove indent from section headers and paragraphs
   - [x] Don't use bullet points, use customizable spacing between list items
   - [x] Right running header with day of week and current date in ISO-8601
-  - [ ] Light gold rectangle border around each sectionbox
+  - [x] Light gold rectangle border around each sectionbox
 
 Build pipeline:
 - [x] generate.py: Minimal wrapper to invoke SILE and write output/brief.pdf
