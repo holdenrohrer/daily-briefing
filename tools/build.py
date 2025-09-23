@@ -24,7 +24,32 @@ from typing import Any, Dict, Callable
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-from tools import caldav, facebook, rss, spend, weather as weather_mod, wiki, youtube, config
+import importlib
+from types import ModuleType
+from tools import config
+
+def _resolve_getter(section: str, func_name: str, verbose: bool = False):
+    """
+    Resolve a section data-generator function.
+
+    Lookup order:
+      1. sections.<section>.build module (preferred new layout)
+      2. tools.<section> module (backwards compatibility)
+
+    Returns a callable; raises ImportError if none found.
+    """
+    candidates = [f"sections.{section}.build", f"tools.{section}"]
+    for mod_name in candidates:
+        try:
+            mod = importlib.import_module(mod_name)
+        except ModuleNotFoundError:
+            continue
+        func = getattr(mod, func_name, None)
+        if callable(func):
+            if verbose:
+                print(f"[build] Using {mod_name}.{func_name}")
+            return func
+    raise ImportError(f"No module provides {func_name} for section {section}; checked {candidates}")
 
 
 def _iso_now() -> str:
@@ -167,27 +192,33 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
             print(f"[build] Wrote {file}")
         return data
 
-    # RSS
-    rss_data = _fetch_json("data/rss.json", rss.fetch_rss, feeds=config.RSS_FEEDS, since=cutoff_dt, official=official)
+    # Per-section getters (prefer sections/<name>/build.py; fall back to tools/<name>.py)
+    rss_getter = _resolve_getter("rss", "fetch_rss", verbose=bool(verbose))
+    rss_data = _fetch_json("data/rss.json", rss_getter, feeds=config.RSS_FEEDS, since=cutoff_dt, official=official)
 
-    # Wikipedia
-    wiki_data = _fetch_json("data/wikipedia.json", wiki.fetch_front_page)
+    wiki_getter = _resolve_getter("wikipedia", "fetch_front_page", verbose=bool(verbose))
+    wiki_data = _fetch_json("data/wikipedia.json", wiki_getter)
 
     # API Spend
     yesterday = datetime.now(timezone.utc).date().isoformat()
-    spend_data = _fetch_json("data/api_spend.json", spend.summarize_spend, yesterday)
+    spend_getter = _resolve_getter("api_spend", "summarize_spend", verbose=bool(verbose))
+    spend_data = _fetch_json("data/api_spend.json", spend_getter, yesterday)
 
     # YouTube
-    yt_data = _fetch_json("data/youtube.json", youtube.fetch_videos, config.YOUTUBE_CHANNELS)
+    yt_getter = _resolve_getter("youtube", "fetch_videos", verbose=bool(verbose))
+    yt_data = _fetch_json("data/youtube.json", yt_getter, config.YOUTUBE_CHANNELS)
 
     # Facebook
-    fb_data = _fetch_json("data/facebook.json", facebook.fetch_posts, config.FACEBOOK_PAGES)
+    fb_getter = _resolve_getter("facebook", "fetch_posts", verbose=bool(verbose))
+    fb_data = _fetch_json("data/facebook.json", fb_getter, config.FACEBOOK_PAGES)
 
     # CALDAV
-    cal_data = _fetch_json("data/caldav.json", caldav.fetch_events, yesterday)
+    cal_getter = _resolve_getter("caldav", "fetch_events", verbose=bool(verbose))
+    cal_data = _fetch_json("data/caldav.json", cal_getter, yesterday)
 
     # Weather (ensure placeholder SVG exists)
-    weather_data = _fetch_json("data/weather.json", weather_mod.build_daily_svg, config.WEATHER_SVG_PATH)
+    weather_getter = _resolve_getter("weather", "build_daily_svg", verbose=bool(verbose))
+    weather_data = _fetch_json("data/weather.json", weather_getter, config.WEATHER_SVG_PATH)
 
     # Metadata (for end-of-document display)
     def _git_rev() -> str | None:
