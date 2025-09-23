@@ -12,19 +12,7 @@
 % Running header/footer handled by holden-report.sil (custom plain-class patch)
 
 
-% Placeholder sections using a simple boxed style
-\sectionbox{%
-  \sectiontitle{Welcome}%
-  This is a minimal placeholder for the daily report layout. Replace this text with real sections.
-}
-\sectionbox{
-  \sectiontitle{Today’s Items}
-  - Wikipedia front page summary (placeholder)
-  \par
-  - API spend summary (placeholder)
-  \par
-  - RSS highlights (placeholder)
-}
+% Placeholder sections removed to avoid overfull frames; real sections follow
 % Per-section placeholders (reading individual JSON files)
 \rsssection
 \wikipediasection
