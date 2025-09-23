@@ -1,0 +1,7 @@
+% Metadata section (rendered at the bottom, light weight, no box)
+\define[command=metadatasection]{
+  \font[weight=200,size=9pt]{
+    \novbreak
+    \include[src=data/metadata.sil]
+  }
+}

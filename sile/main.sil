@@ -7,6 +7,7 @@
 \include[src=sections/facebook.sil]
 \include[src=sections/caldav.sil]
 \include[src=sections/weather.sil]
+\include[src=sections/metadata.sil]
 
 % Running header/footer handled by holden-report.sil (custom plain-class patch)
 
@@ -34,6 +35,7 @@
 \weathersection
 
 \verticalfill
+\metadatasection
 
 % End of document
 

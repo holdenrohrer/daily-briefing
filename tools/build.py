@@ -239,6 +239,50 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
     }
     _fetch_json("data/metadata.json", lambda: metadata)
 
+    # Also write a simple SILE snippet for typesetting the metadata at document end
+    def _write_metadata_sil_file(md: Dict[str, Any]) -> None:
+        p = Path("data/metadata.sil")
+        _ensure_dir(p.parent)
+        lines: list[str] = []
+        lines.append("Metadata")
+        lines.append("\\par")
+        lines.append(f"Created: {md.get('created_iso') or ''}")
+        if md.get("cutoff_iso") is not None:
+            lines.append("\\par")
+            lines.append(f"Cutoff: {md.get('cutoff_iso')}")
+        lines.append("\\par")
+        lines.append(f"Official build: {'Yes' if md.get('official') else 'No'}")
+        if md.get("git_rev"):
+            lines.append("\\par")
+            lines.append(f"Git rev: {md.get('git_rev')}")
+        if md.get("python_version"):
+            pyver = str(md.get("python_version")).splitlines()[0]
+            lines.append("\\par")
+            lines.append(f"Python: {pyver}")
+        secs = md.get("sections") or {}
+        def _sec_count(key: str) -> int | None:
+            try:
+                sec = secs.get(key) or {}
+                val = sec.get("items")
+                return int(val) if isinstance(val, int) else None
+            except Exception:
+                return None
+        for key, label in (("rss","RSS"), ("youtube","YouTube"), ("facebook","Facebook"), ("caldav","CALDAV")):
+            cnt = _sec_count(key)
+            if cnt is not None:
+                lines.append("\\par")
+                lines.append(f"{label} items: {cnt}")
+        weather_sec = secs.get("weather") or {}
+        if "svg_path" in weather_sec and weather_sec.get("svg_path"):
+            lines.append("\\par")
+            lines.append(f"Weather SVG: {weather_sec.get('svg_path')}")
+        with p.open("w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+        if verbose:
+            print("[build] Wrote data/metadata.sil")
+
+    _write_metadata_sil_file(metadata)
+
 
 def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
     env = os.environ.copy()
