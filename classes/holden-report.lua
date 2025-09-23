@@ -48,8 +48,6 @@ function class:_init (options)
     insertInto = "footnotes",
     stealFrom = { "content" },
   })
-  -- Standard debug package (used to show frames when enabled via env)
-  self:loadPackage("debug")
 
   -- Disable any default folio rendering; footer will be handled by our macro.
   SILE.scratch.counters = SILE.scratch.counters or {}
@@ -84,46 +82,11 @@ function class:endPage ()
     end
   end)
 
-  -- Optionally overlay frame outlines using the standard debug package
-  local dbg = os.getenv("REPORT_DEBUG_BOXES")
-  if dbg and dbg ~= "" and dbg ~= "0" and dbg ~= "false" then
-    local frames = { "content", "runningHead", "folio", "footnotes" }
-    for _, fname in ipairs(frames) do
-      pcall(function()
-        SILE.call("showframe", { frame = fname })
-      end)
-    end
-  end
-
   return plain.endPage(self)
 end
 
 function class:registerCommands ()
   plain.registerCommands(self)
-end
-
-function needspace(height_spec)
-  -- Parse the height specification
-  local height = SILE.parseComplexFrameDimension(height_spec)
-  
-  -- Add a custom node to the queue
-  local node = {
-    type = "needspace_check",
-    -- This might be called during processing
-    outputYourself = function(self, typesetter, line)
-      local remaining = typesetter.frame:bottom() - typesetter.frame.state.cursorY 
-      builtin_dump(remaining)
-      builtin_dump(height_spec)
-      io.write("\n")
-      if remaining < height_spec then
-        local out = SILE.types.node.glue(height)
-        return out
-      end
-    end
-  }
-
-  -- Use pushVertical to add the node
-  SILE.typesetter:pushVertical(node)
 end
 
 function builtin_dump(val, name, indent, seen)
