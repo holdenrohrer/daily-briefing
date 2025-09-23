@@ -97,6 +97,29 @@
     end
   end
 }
+            SILE.call("skip", { height = "0.4em" })
+            -- Bottom rule
+            SILE.call("hrule", { height = "0.8pt", width = "100%lw" })
+          end)
+        end)
+        if not ok2 then
+          -- Fallback: top/bottom rules only
+          SILE.call("color", { color = "#c9b458" }, function ()
+            SILE.call("hrule", { height = "0.8pt", width = "100%lw" })
+          end)
+          SILE.call("skip", { height = "0.4em" })
+          SILE.call("color", { color = "#111111" }, function () SILE.process(content) end)
+          SILE.call("skip", { height = "0.4em" })
+          SILE.call("color", { color = "#c9b458" }, function ()
+            SILE.call("hrule", { height = "0.8pt", width = "100%lw" })
+          end)
+        end
+        SILE.call("skip", { height = "0.35em" })
+        SILE.call("par")
+      end)
+    end
+  end
+}
 
 % Bulletless lists with customizable spacing between items.
 % Usage: \itemize[itemsep=0.35em]{ \item{First} \item{Second} }
