@@ -1,6 +1,7 @@
 % Metadata section (rendered at the bottom, light weight, no box)
 \define[command=metadatasection]{
-  \font[weight=200,size=9pt]{
+  \font[weight=200,size=6pt]{
+    \set[parameter=document.baselineskip, value=8pt]
     \novbreak
     \lua{
       local loader = SILE and SILE.scratch and SILE.scratch.load_json_file
