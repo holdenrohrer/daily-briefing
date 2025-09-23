@@ -203,69 +203,36 @@
   \skip[height=0.5in]
 }
 
-% Load report data via a standard JSON library if available
-\define[command=loaddata]{
-  \lua{
+
+% JSON helper to load a file into a Lua table using a JSON library
+\lua{
+  function SILE.scratch.load_json_file(path)
     -- Allow local vendored libs if later added (sile/lib/?.lua)
     local added = "sile/lib/?.lua;"
     if not string.find(package.path, added, 1, true) then
       package.path = added .. package.path
     end
 
-    -- Try common JSON libraries in order (no custom parsers)
-    local candidates = { "cjson.safe", "cjson", "dkjson", "json" }
-    local json, libname
-    for _, name in ipairs(candidates) do
-      local ok, mod = pcall(require, name)
-      if ok and mod then
-        json, libname = mod, name
-        break
-      end
-    end
-    SILE.scratch.json = json
-    SILE.scratch.json_lib = libname
-
-    local path = os.getenv("REPORT_DATA_JSON") or "data/data.json"
-    SILE.scratch.report_data_path = path
-
-    local fh = io.open(path, "rb")
-    if not fh then
-      SILE.typesetter:typeset("Could not open data file: " .. path)
-      return
-    end
-    local content = fh:read("*a")
-    fh:close()
-
-    if not json then
-      SILE.typesetter:typeset("No JSON library found (tried cjson.safe, cjson, dkjson, json).")
-      return
-    end
-
-    local ok, data
-    if json.decode then
-      ok, data = pcall(json.decode, content)
-    elseif json.parse then
-      ok, data = pcall(json.parse, content)
-    else
-      ok, data = false, nil
-    end
-    if not ok or type(data) ~= "table" then
-      SILE.typesetter:typeset("Failed to parse JSON with " .. tostring(libname or "unknown"))
-      return
-    end
-
-    SILE.scratch.report_data = data
-  }
-}
-
-% JSON helper to load a file into a Lua table using the shared library
-\lua{
-  function SILE.scratch.load_json_file(path)
     local fh = io.open(path, "rb")
     if not fh then return nil, "open" end
     local content = fh:read("*a"); fh:close()
+
+    -- Ensure a JSON library is available (lazy-init)
     local json = SILE.scratch.json
+    if not json then
+      local candidates = { "cjson.safe", "cjson", "dkjson", "json" }
+      for _, name in ipairs(candidates) do
+        local ok, mod = pcall(require, name)
+        if ok and mod then
+          json = mod
+          SILE.scratch.json = mod
+          SILE.scratch.json_lib = name
+          break
+        end
+      end
+    end
     if not json then return nil, "jsonlib" end
+
     local decode = json.decode or json.parse
     if not decode then return nil, "decode" end
     local ok, data = pcall(decode, content)
@@ -274,30 +241,3 @@
   end
 }
 
-% Render a minimal overview of loaded data into a section box
-\define[command=renderdataoverview]{
-  \lua{
-    local data = SILE.scratch.report_data
-    if not data then
-      local lib = SILE.scratch.json_lib or "none"
-      SILE.typesetter:typeset("Data not loaded; JSON lib: " .. tostring(lib) .. ".")
-      return
-    end
-    local sections = (type(data.sections) == "table") and data.sections or {}
-    local order = { "rss", "wikipedia", "api_spend", "youtube", "facebook", "caldav", "weather" }
-    local parts = {}
-    for _, key in ipairs(order) do
-      local sec = sections[key]
-      local count = 0
-      if type(sec) == "table" then
-        if key == "wikipedia" then
-          count = (type(sec.summary) == "string" and #sec.summary > 0) and 1 or 0
-        elseif type(sec.items) == "table" then
-          count = #sec.items
-        end
-      end
-      parts[#parts + 1] = key .. "=" .. tostring(count)
-    end
-    SILE.typesetter:typeset("Sections: " .. table.concat(parts, "; "))
-  }
-}

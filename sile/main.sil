@@ -10,8 +10,6 @@
 
 % Running header/footer handled by holden-report.sil (custom plain-class patch)
 
-% Load shared data state (JSON lib and path)
-\loaddata
 
 % Placeholder sections using a simple boxed style
 \sectionbox{%
@@ -25,18 +23,6 @@
   - API spend summary (placeholder)
   \par
   - RSS highlights (placeholder)
-}
-% Build Info (auto-detected when running via tools/build.py)
-\sectionbox{
-  \sectiontitle{Build Info}
-  \lua{
-    local v = os.getenv("REPORT_DATA_JSON") or "not set"
-    SILE.typesetter:typeset("Data JSON: " .. v)
-  }
-}
-\sectionbox{
-  \sectiontitle{Data Summary}
-  \renderdataoverview
 }
 % Per-section placeholders (reading individual JSON files)
 \rsssection

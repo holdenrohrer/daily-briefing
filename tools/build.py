@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Build orchestrator: prepares data/data.json and optionally invokes SILE to
-render output/brief.pdf from sile/main.sil.
+Build orchestrator: prepares per-section JSON files and optionally invokes SILE
+to render output/brief.pdf from sile/main.sil.
 
 No external dependencies; standard library only.
-Environment:
-- REPORT_DATA_JSON is set for SILE so templates can read the JSON path.
 
 Usage:
   python tools/build.py
@@ -234,9 +232,8 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
         print("[build] Wrote data/weather.json")
 
 
-def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, verbose: bool = False) -> int:
+def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
     env = os.environ.copy()
-    env["REPORT_DATA_JSON"] = str(data_json.resolve())
     _ensure_dir(output_pdf.parent)
     cmd = ["sile", "--luarocks-tree", "sile/lua_modules", "-o", str(output_pdf), '--', str(sile_main)]
     if verbose:
@@ -303,12 +300,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Output PDF path.",
     )
     p.add_argument(
-        "--data-json",
-        default="data/data.json",
-        type=str,
-        help="Combined data JSON output path.",
-    )
-    p.add_argument(
         "--skip-sile",
         action="store_true",
         help="Only build data JSON; do not run SILE.",
@@ -331,7 +322,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     sile_main = Path(args.sile)
     output_pdf = Path(args.output)
-    data_json = Path(args.data_json)
 
     # Ensure basic project directories exist
     for d in (
@@ -342,11 +332,6 @@ def main(argv: list[str] | None = None) -> int:
     ):
         _ensure_dir(d)
 
-    # Write placeholder combined JSON
-    data = _build_placeholder_data()
-    _write_json(data_json, data)
-    if args.verbose:
-        print(f"[build] Wrote {data_json}")
 
     # Determine cutoff for time-based sections: since last --official or 48h ago, whichever is later
     now_dt = datetime.now(timezone.utc)
@@ -380,7 +365,6 @@ def main(argv: list[str] | None = None) -> int:
     return _run_sile(
         sile_main=sile_main,
         output_pdf=output_pdf,
-        data_json=data_json,
         verbose=bool(args.verbose),
     )
 
