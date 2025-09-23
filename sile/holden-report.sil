@@ -32,6 +32,7 @@
   \nobreak
   \skip[height=.25em]
   \nobreak
+  \noindent
 }
 
 % Simple section box wrapper
