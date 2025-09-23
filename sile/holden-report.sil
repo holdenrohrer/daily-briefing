@@ -40,13 +40,56 @@
 % Simple section box wrapper (fallback without framebox package)
 \define[command=sectionbox]{
   \skip[height=0.35em]
-  \Gold{\hrule[height=0.6pt]}
+  \Gold{\hrule[height=0.8pt, width=100%lw]}
   \skip[height=0.4em]
   \Ink{\process}
   \skip[height=0.4em]
-  \Gold{\hrule[height=0.6pt]}
+  \Gold{\hrule[height=0.8pt, width=100%lw]}
   \skip[height=0.35em]
   \break
+}
+
+% If the ptable.sile package is available, override sectionbox to a breakable framed box.
+% Fallback to the rules-based version above if ptable cannot be loaded or used.
+\lua{
+  do
+    local ok = pcall(function() SILE.call("use", { module = "packages.ptable" }) end)
+    if ok then
+      local class = SILE.documentState.documentClass
+      class:registerCommand("sectionbox", function (options, content)
+        SILE.call("skip", { height = "0.35em" })
+        local ok2 = pcall(function()
+          -- Draw frame/border in Gold, inner content in Ink.
+          SILE.call("color", { color = "#c9b458" }, function ()
+            -- Minimal 1x1 table with a frame; splits across pages as needed.
+            SILE.call("ptable", { frame = "all" }, function ()
+              SILE.call("row", {}, function ()
+                SILE.call("cell", { padding = "0.6em" }, function ()
+                  SILE.call("color", { color = "#111111" }, function ()
+                    SILE.process(content)
+                  end)
+                end)
+              end)
+            end)
+          end)
+        end)
+        if not ok2 then
+          -- Fallback: top/bottom rules only
+          SILE.call("color", { color = "#c9b458" }, function ()
+            SILE.call("hrule", { height = "0.8pt", width = "100%lw" })
+          end)
+          SILE.call("skip", { height = "0.4em" })
+          SILE.call("color", { color = "#111111" }, function () SILE.process(content) end)
+          SILE.call("skip", { height = "0.4em" })
+          SILE.call("color", { color = "#c9b458" }, function ()
+            SILE.call("hrule", { height = "0.8pt", width = "100%lw" })
+          end)
+        end
+        SILE.call("skip", { height = "0.35em" })
+        SILE.call("par")
+      end)
+    end
+  end
 }
 
 % Bulletless lists with customizable spacing between items.
