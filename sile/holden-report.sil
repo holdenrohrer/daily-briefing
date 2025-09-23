@@ -5,7 +5,7 @@
 
 % Color palette and baseline grid
 \use[module=packages.color]
-\set[parameter=document.baselineskip, value=12pt]
+\set[parameter=document.baselineskip, value=0pt]
 
 % Theme wrappers (single source of colors)
 \define[command=Ink]{\color[color=#111111]{\process}}
@@ -18,39 +18,26 @@
   \par
 }
 
+\define[command=needspace]{
+  \skip[height=0pt plus 3in]
+  \break
+  \skip[height=0pt plus -3in]
+}
+
 \define[command=sectiontitle]{
+  \needspace
   \font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
+  \nobreak
   \skip[height=.25em]
   \nobreak
 }
 
 % Simple section box wrapper
 \define[command=sectionbox]{
-  \lua{
-    -- If less than 30% of the content frame remains, push this section to the next page.
-    local ratio = 0.3
-    local frame = SILE and SILE.typesetter and SILE.typesetter.frame
-    if not frame and SILE and SILE.getFrame then
-      local ok, frm = pcall(SILE.getFrame, "content")
-      if ok and frm then frame = frm end
-    end
-    local remain, total
-    if frame and frame.state then
-      local s = frame.state
-      local bottom = s.bottom or ((s.y or 0) + (s.h or 0))
-      local top = s.top or (s.y or 0)
-      local y = s.cursorY
-      if bottom and top then total = bottom - top end
-      if bottom and y then remain = bottom - y end
-    end
-    if remain and total and total > 0 and (remain/total) < ratio then
-      -- Fill the remainder of the page so the section starts on the next page.
-      SILE.call("skip", { height = "0pt", stretch = "1fil" })
-    end
-  }
-  \skip[height=0.75em]
+  \skip[height=0.25em]
   \process
-  \skip[height=0.75em]
+  \skip[height=0.25em]
+  \break
 }
 
 % Running header text (used by book class' running headers)

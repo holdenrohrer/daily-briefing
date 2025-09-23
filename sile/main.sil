@@ -18,7 +18,6 @@
   \sectiontitle{Welcome}
   This is a minimal placeholder for the daily report layout. Replace this text with real sections.
 }
-
 \sectionbox{
   \sectiontitle{Today’s Items}
   - Wikipedia front page summary (placeholder)
@@ -27,7 +26,6 @@
   \par
   - RSS highlights (placeholder)
 }
-
 % Build Info (auto-detected when running via tools/build.py)
 \sectionbox{
   \sectiontitle{Build Info}
@@ -36,12 +34,10 @@
     SILE.typesetter:typeset("Data JSON: " .. v)
   }
 }
-
 \sectionbox{
   \sectiontitle{Data Summary}
   \renderdataoverview
 }
-
 % Per-section placeholders (reading individual JSON files)
 \rsssection
 \wikipediasection
