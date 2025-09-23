@@ -50,12 +50,12 @@ Build pipeline:
     of --official, or 48 hours ago, whichever is closer to today.
 
 Data ingestion (Python):
-- [ ] RSS (feedparser):
-  - [ ] Read configured feeds (incl. https://feeds.arstechnica.com/arstechnica/index and https://pluralistic.net/feed/, Alexander Codex Ten, thezvi.substack.com)
-  - [ ] Normalize to JSON (title, link, source, published, summary)
-  - [ ] Minimal module scaffold (tools/rss.py) with fetch_rss(feeds: list[str]) -> list[Item]
-  - [ ] Include marketing slugs 
-  - [ ] Group by source
+- [x] RSS (feedparser):
+  - [x] Read configured feeds (incl. https://feeds.arstechnica.com/arstechnica/index and https://pluralistic.net/feed/, Alexander Codex Ten, thezvi.substack.com)
+  - [x] Normalize to JSON (title, link, source, published, summary)
+  - [x] Minimal module scaffold (tools/rss.py) with fetch_rss(feeds: list[str]) -> list[Item]
+  - [x] Include marketing slugs
+  - [x] Group by source
 - [ ] Webcomics (possibly also RSS):
   - [ ] Qwantz
   - [ ] xkcd
