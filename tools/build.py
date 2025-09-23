@@ -114,7 +114,7 @@ def _build_placeholder_data() -> Dict[str, Any]:
     }
     return data
 
-def _write_per_section_jsons() -> None:
+def _write_per_section_jsons(verbose: bool = False) -> None:
     """
     Write per-section placeholder JSON files under data/.
     """
@@ -132,18 +132,21 @@ def _write_per_section_jsons() -> None:
     else:
         rss_json["items"] = rss_data
     _write_json(Path("data/rss.json"), rss_json)
-    print("[build] Wrote data/rss.json")
+    if verbose:
+        print("[build] Wrote data/rss.json")
 
     # Wikipedia
     wiki_json = wiki.fetch_front_page()
     _write_json(Path("data/wikipedia.json"), wiki_json)
-    print("[build] Wrote data/wikipedia.json")
+    if verbose:
+        print("[build] Wrote data/wikipedia.json")
 
     # API Spend
     yesterday = datetime.now(timezone.utc).date().isoformat()
     spend_json = spend.summarize_spend(yesterday)
     _write_json(Path("data/api_spend.json"), spend_json)
-    print("[build] Wrote data/api_spend.json")
+    if verbose:
+        print("[build] Wrote data/api_spend.json")
 
     # YouTube
     yt_channels: list[str] = []
@@ -152,7 +155,8 @@ def _write_per_section_jsons() -> None:
         "items": youtube.fetch_videos(yt_channels),
     }
     _write_json(Path("data/youtube.json"), yt_json)
-    print("[build] Wrote data/youtube.json")
+    if verbose:
+        print("[build] Wrote data/youtube.json")
 
     # Facebook
     fb_pages: list[str] = []
@@ -161,7 +165,8 @@ def _write_per_section_jsons() -> None:
         "items": facebook.fetch_posts(fb_pages),
     }
     _write_json(Path("data/facebook.json"), fb_json)
-    print("[build] Wrote data/facebook.json")
+    if verbose:
+        print("[build] Wrote data/facebook.json")
 
     # CALDAV
     cal_json = {
@@ -169,7 +174,8 @@ def _write_per_section_jsons() -> None:
         "items": caldav.fetch_events(yesterday),
     }
     _write_json(Path("data/caldav.json"), cal_json)
-    print("[build] Wrote data/caldav.json")
+    if verbose:
+        print("[build] Wrote data/caldav.json")
 
     # Weather (ensure placeholder SVG exists)
     svg_meta = weather_mod.build_daily_svg(Path("assets/charts/weather.svg"))
@@ -179,17 +185,18 @@ def _write_per_section_jsons() -> None:
         "items": [],
     }
     _write_json(Path("data/weather.json"), weather_json)
-    print("[build] Wrote data/weather.json")
+    if verbose:
+        print("[build] Wrote data/weather.json")
 
 
-def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: bool) -> int:
+def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: bool, verbose: bool = False) -> int:
     env = os.environ.copy()
     env["REPORT_DATA_JSON"] = str(data_json.resolve())
     _ensure_dir(output_pdf.parent)
     if_debug_boxes = []
     cmd = ["sile", *if_debug_boxes, "-o", str(output_pdf), '--', str(sile_main)]
-    print(cmd)
-    print(f"[build] Running: {' '.join(cmd)}")
+    if verbose:
+        print(f"[build] Running: {' '.join(cmd)}")
     try:
         proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
     except FileNotFoundError:
@@ -200,13 +207,14 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: b
         )
         return 127
 
-    # Echo SILE output after process exits (keeps logs visible in CI/hooks)
+    # Capture SILE output (print only on error or verbose)
     stdout = proc.stdout or ""
     stderr = proc.stderr or ""
-    if stdout:
-        print(stdout, end="")
-    if stderr:
-        print(stderr, end="", file=sys.stderr)
+    if verbose:
+        if stdout:
+            print(stdout, end="")
+        if stderr:
+            print(stderr, end="", file=sys.stderr)
 
     # Heuristic: Treat known SILE error patterns as failure even if exit code is 0
     def _looks_like_sile_error(s: str) -> bool:
@@ -228,7 +236,15 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: b
         )
         rc = 1
 
-    if rc != 0:
+    if rc == 0:
+        if not verbose:
+            print(f"[build] OK: {output_pdf}")
+    else:
+        if not verbose:
+            if stdout:
+                print(stdout, end="")
+            if stderr:
+                print(stderr, end="", file=sys.stderr)
         print(f"[build] SILE exited with {rc}", file=sys.stderr)
     return rc
 
@@ -273,6 +289,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_false",
         help="Disable SILE debug frame boxes.",
     )
+    p.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose logging (print detailed progress and SILE output).",
+    )
     return p.parse_args(argv)
 
 
@@ -294,10 +316,13 @@ def main(argv: list[str] | None = None) -> int:
     # Write placeholder combined JSON
     data = _build_placeholder_data()
     _write_json(data_json, data)
-    print(f"[build] Wrote {data_json}")
-    _write_per_section_jsons()
+    if args.verbose:
+        print(f"[build] Wrote {data_json}")
+    _write_per_section_jsons(verbose=bool(args.verbose))
 
     if args.skip_sile:
+        if not args.verbose:
+            print("[build] Done (data only).")
         return 0
 
     if not sile_main.exists():
@@ -312,6 +337,7 @@ def main(argv: list[str] | None = None) -> int:
         output_pdf=output_pdf,
         data_json=data_json,
         debug_boxes=bool(args.debug_boxes),
+        verbose=bool(args.verbose),
     )
 
 
