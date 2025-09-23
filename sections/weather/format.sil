@@ -6,9 +6,15 @@
     \sectiontitle{Weather}
     \font[size=9pt]{Hourly temperature, humidity, and precipitation (next 24h), each on its own chart.}
     \par
+    \font[size=9pt]{Temperature (°C)}
+    \par
     \svg[src=assets/charts/weather_temp.svg, width=100%lw]
     \par
+    \font[size=9pt]{Humidity (\%)}
+    \par
     \svg[src=assets/charts/weather_humidity.svg, width=100%lw]
+    \par
+    \font[size=9pt]{Precipitation chance (\%)}
     \par
     \svg[src=assets/charts/weather_precip.svg, width=100%lw]
   }

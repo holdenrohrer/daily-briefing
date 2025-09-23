@@ -5,7 +5,6 @@ import ssl
 import urllib.parse
 import urllib.request
 import json
-import matplotlib
 import matplotlib.dates as mdates
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_svg import FigureCanvasSVG
@@ -245,7 +244,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
 
         ax.plot(dts, values, color=color, linewidth=2)
 
-        ax.set_xlabel("Time")
+        ax.set_xlabel("Time (24h)")
         ax.set_ylabel(ylabel)
         if ylim is not None:
             ax.set_ylim(*ylim)
@@ -262,7 +261,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     # Render three charts (also write the temperature chart to the legacy base path)
     _plot_series_svg(temp_path, times, temps, "Temperature (°C)", "#d62728")
     _plot_series_svg(hum_path, times, hums, "Humidity (%)", "#1f77b4", ylim=(0, 100))
-    _plot_series_svg(prec_path, times, precs, "Precipitation (%)", "#2ca02c", ylim=(0, 100))
+    _plot_series_svg(prec_path, times, precs, "Precipitation chance (%)", "#2ca02c", ylim=(0, 100))
     _plot_series_svg(base, times, temps, "Temperature (°C)", "#d62728")
 
     items = [
