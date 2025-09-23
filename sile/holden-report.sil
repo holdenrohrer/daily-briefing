@@ -59,10 +59,13 @@
       class:registerCommand("sectionbox", function (options, content)
         SILE.call("skip", { height = "0.35em" })
         local ok2 = pcall(function()
-          -- Draw frame/border in Gold, inner content in Ink.
+          -- Draw gold borders: top/bottom rules + breakable vertical rules via ptable (1 column).
           SILE.call("color", { color = "#c9b458" }, function ()
-            -- Minimal 1x1 table with a frame; splits across pages as needed.
-            SILE.call("ptable", { frame = "all" }, function ()
+            -- Top rule
+            SILE.call("hrule", { height = "0.8pt", width = "100%lw" })
+            SILE.call("skip", { height = "0.4em" })
+            -- 1x1 table with only left/right frame; splits across pages as needed.
+            SILE.call("ptable", { cols = 1, frame = "lr" }, function ()
               SILE.call("row", {}, function ()
                 SILE.call("cell", { padding = "0.6em" }, function ()
                   SILE.call("color", { color = "#111111" }, function ()
@@ -71,6 +74,9 @@
                 end)
               end)
             end)
+            SILE.call("skip", { height = "0.4em" })
+            -- Bottom rule
+            SILE.call("hrule", { height = "0.8pt", width = "100%lw" })
           end)
         end)
         if not ok2 then
