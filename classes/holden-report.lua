@@ -56,6 +56,28 @@ function class:_init (options)
 end
 
 function class:endPage ()
+  -- Finalize sectionbox vertical rules for this page (draw once per page)
+  do
+    local folio = (SILE and SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
+    local st = SILE.scratch and SILE.scratch.__sectionbox_state
+    if st and st[folio] then
+      local optsmap = SILE.scratch.__sectionbox_opts or {}
+      for uid, bs in pairs(st[folio]) do
+        local opts = optsmap[uid] or {}
+        local bw = opts.bw or 1
+        local ex = opts.ex or 0
+        local color = opts.color or "#c9b458"
+        if bs.xL and bs.xR and bs.yTop and bs.yBottom and bs.yBottom > bs.yTop then
+          SILE.outputter:pushColor(color)
+          SILE.outputter:drawRule(bs.xL, bs.yTop - ex, bw, (bs.yBottom - bs.yTop) + 2*ex)
+          SILE.outputter:drawRule(bs.xR - bw, bs.yTop - ex, bw, (bs.yBottom - bs.yTop) + 2*ex)
+          SILE.outputter:popColor()
+        end
+      end
+      st[folio] = nil
+    end
+  end
+
   -- Running header (always, no odd/even switching)
   local rh = SILE.getFrame("runningHead")
   SILE.typesetNaturally(rh, function ()

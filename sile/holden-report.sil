@@ -57,11 +57,14 @@
 
       local ts = SILE.typesetter
       local bw = toNum(SU.cast("length", borderw))
+      local ex = toNum(SU.cast("length", options.fudge or "0.3em"))
 
       -- Track continuous vertical rules across glue by aggregating extents per page and section instance.
       SILE.scratch.__sectionbox_state = SILE.scratch.__sectionbox_state or {}
+      SILE.scratch.__sectionbox_opts = SILE.scratch.__sectionbox_opts or {}
       SILE.scratch.__sectionbox_uid = (SILE.scratch.__sectionbox_uid or 0) + 1
       local uid = SILE.scratch.__sectionbox_uid
+      SILE.scratch.__sectionbox_opts[uid] = { color = color, bw = bw, ex = ex }
       local function currentFolio()
         local c = SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio
         return (c and c.value) or 1
@@ -108,10 +111,7 @@
         end
         st[folio][uid] = bs
 
-        SILE.outputter:pushColor(color)
-        SILE.outputter:drawRule(bs.xL, bs.yTop, bw, bs.yBottom - bs.yTop)
-        SILE.outputter:drawRule(bs.xR - bw, bs.yTop, bw, bs.yBottom - bs.yTop)
-        SILE.outputter:popColor()
+        -- Defer drawing to endPage; only aggregate extents here.
 
         -- Output the actual line content
         self:outputContent(typesetter, line)
