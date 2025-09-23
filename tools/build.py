@@ -19,7 +19,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict
 # Ensure project root is on sys.path when running as a script (python tools/build.py)
@@ -41,6 +41,45 @@ def _write_json(path: Path, data: Dict[str, Any]) -> None:
     _ensure_dir(path.parent)
     with path.open("w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2, sort_keys=True, ensure_ascii=False)
+
+
+def _official_state_path() -> Path:
+    return Path("data/.cache/official.json")
+
+
+def _read_last_official() -> datetime | None:
+    p = _official_state_path()
+    try:
+        with p.open("r", encoding="utf-8") as fh:
+            obj = json.load(fh)
+        ts = obj.get("last_official")
+        if not isinstance(ts, str) or not ts:
+            return None
+        dt = datetime.fromisoformat(ts)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
+        return None
+
+
+def _write_last_official(iso_ts: str) -> None:
+    p = _official_state_path()
+    _ensure_dir(p.parent)
+    with p.open("w", encoding="utf-8") as fh:
+        json.dump({"last_official": iso_ts}, fh, indent=2, sort_keys=True, ensure_ascii=False)
+
+
+def _parse_iso(ts: str | None) -> datetime | None:
+    if not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(ts)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
 
 
 def _build_placeholder_data() -> Dict[str, Any]:
@@ -114,9 +153,11 @@ def _build_placeholder_data() -> Dict[str, Any]:
     }
     return data
 
-def _write_per_section_jsons(verbose: bool = False) -> None:
+def _write_per_section_jsons(verbose: bool = False, cutoff_iso: str | None = None, official: bool = False) -> None:
     """
-    Write per-section placeholder JSON files under data/.
+    Write per-section JSON files under data/.
+    If cutoff_iso is provided, filter time-based sections (e.g., RSS) to entries
+    published at or after the cutoff. When 'official' is True, annotate metadata.
     """
     # RSS
     rss_feeds = [
@@ -131,6 +172,39 @@ def _write_per_section_jsons(verbose: bool = False) -> None:
         rss_json.update(rss_data)
     else:
         rss_json["items"] = rss_data
+
+    # Optionally filter RSS items by cutoff time
+    if cutoff_iso:
+        cutoff_dt = _parse_iso(cutoff_iso)
+        if cutoff_dt:
+            items = rss_json.get("items") or []
+            if isinstance(items, list):
+                filtered_items: list[dict] = []
+                for it in items:
+                    pub_dt = _parse_iso(str(it.get("published") or ""))
+                    if pub_dt and pub_dt >= cutoff_dt:
+                        filtered_items.append(it)
+                rss_json["items"] = filtered_items
+
+            # Rebuild groups to reflect filtered items (using provided source_slug)
+            groups: Dict[str, Any] = {}
+            for it in rss_json.get("items", []):
+                src = str(it.get("source") or "")
+                sslug = str(it.get("source_slug") or "")
+                if not sslug:
+                    # Fallback if missing, keep simple to avoid duplicating slug logic
+                    sslug = (src.lower().replace(" ", "-") or "source")
+                grp = groups.setdefault(sslug, {"source": src or "", "source_slug": sslug, "items": []})
+                grp["items"].append(it)
+            rss_json["groups"] = groups
+
+            # Annotate meta
+            meta = dict(rss_json.get("meta") or {})
+            meta["cutoff_iso"] = cutoff_iso
+            meta["official"] = bool(official)
+            meta["sources"] = len(rss_json.get("groups", {}))
+            rss_json["meta"] = meta
+
     _write_json(Path("data/rss.json"), rss_json)
     if verbose:
         print("[build] Wrote data/rss.json")
@@ -269,6 +343,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Only build data JSON; do not run SILE.",
     )
     p.add_argument(
+        "--official",
+        action="store_true",
+        help="Record this build as an official edition; filter content since last official or 48h ago.",
+    )
+    p.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -297,7 +376,24 @@ def main(argv: list[str] | None = None) -> int:
     _write_json(data_json, data)
     if args.verbose:
         print(f"[build] Wrote {data_json}")
-    _write_per_section_jsons(verbose=bool(args.verbose))
+
+    # Determine cutoff for time-based sections: since last --official or 48h ago, whichever is later
+    now_dt = datetime.now(timezone.utc)
+    last_official_dt = _read_last_official()
+    default_cutoff_dt = now_dt - timedelta(hours=48)
+    if last_official_dt and last_official_dt > default_cutoff_dt:
+        cutoff_dt = last_official_dt
+    else:
+        cutoff_dt = default_cutoff_dt
+    cutoff_iso = cutoff_dt.isoformat()
+
+    _write_per_section_jsons(verbose=bool(args.verbose), cutoff_iso=cutoff_iso, official=bool(args.official))
+
+    # If this is an official build, persist the timestamp
+    if args.official:
+        _write_last_official(now_dt.isoformat())
+        if args.verbose:
+            print(f"[build] Recorded official timestamp: {now_dt.isoformat()}")
 
     if args.skip_sile:
         if not args.verbose:
