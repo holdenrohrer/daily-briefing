@@ -32,13 +32,31 @@ def _resolve_getter(section: str, func_name: str, verbose: bool = False):
     """
     Resolve a section data-generator function.
 
-    Lookup order:
-      1. sections.<section>.build module (preferred new layout)
-      2. tools.<section> module (backwards compatibility)
+    Lookup order (attempts):
+      1. sections.<section>.build (preferred new layout)
+      2. tools.<section> (backwards compatibility)
+      3. useful aliases (e.g. wikipedia -> tools.wiki, api_spend -> tools.spend)
+      4. tools.<section-without-underscores>
 
     Returns a callable; raises ImportError if none found.
     """
-    candidates = [f"sections.{section}.build", f"tools.{section}"]
+    candidates = [f"sections.{section}.build"]
+    # Primary tools candidate mirrors the section name
+    candidates.append(f"tools.{section}")
+
+    # Common aliases for historically different module names
+    alias_map = {
+        "wikipedia": "wiki",
+        "api_spend": "spend",
+    }
+    if section in alias_map:
+        candidates.append(f"tools.{alias_map[section]}")
+
+    # Try a tools module with underscores removed (e.g., "api_spend" -> "apispend")
+    if "_" in section:
+        candidates.append(f"tools.{section.replace('_', '')}")
+
+    # Final fallback: try importing any of the candidates and look for the function
     for mod_name in candidates:
         try:
             mod = importlib.import_module(mod_name)
@@ -49,6 +67,7 @@ def _resolve_getter(section: str, func_name: str, verbose: bool = False):
             if verbose:
                 print(f"[build] Using {mod_name}.{func_name}")
             return func
+
     raise ImportError(f"No module provides {func_name} for section {section}; checked {candidates}")
 
 
