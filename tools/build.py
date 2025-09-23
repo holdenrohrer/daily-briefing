@@ -19,12 +19,12 @@ import subprocess
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Callable
 # Ensure project root is on sys.path when running as a script (python tools/build.py)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-from tools import caldav, facebook, rss, spend, weather as weather_mod, wiki, youtube
+from tools import caldav, facebook, rss, spend, weather as weather_mod, wiki, youtube, config
 
 
 def _iso_now() -> str:
@@ -158,78 +158,36 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
     to limit items published at or after that moment. When 'official' is True,
     rss metadata will be annotated accordingly.
     """
+    def _fetch_json(file: str | Path, getter: Callable[..., Any], *args, **kwargs) -> Dict[str, Any]:
+        data = getter(*args, **kwargs)
+        if not isinstance(data, dict):
+            data = {"items": data}
+        _write_json(Path(file), data)
+        if verbose:
+            print(f"[build] Wrote {file}")
+        return data
+
     # RSS
-    rss_feeds = [
-        "https://feeds.arstechnica.com/arstechnica/index",
-        "https://pluralistic.net/feed/",
-    ]
-    rss_data = rss.fetch_rss(rss_feeds, since=cutoff_dt, official=official)
-    rss_json = {
-        "title": "RSS Highlights",
-    }
-    if isinstance(rss_data, dict):
-        rss_json.update(rss_data)
-    else:
-        rss_json["items"] = rss_data
-
-    # Note: time-based filtering is performed in tools/rss.py (since=cutoff_dt)
-
-    _write_json(Path("data/rss.json"), rss_json)
-    if verbose:
-        print("[build] Wrote data/rss.json")
+    _fetch_json("data/rss.json", rss.fetch_rss, feeds=config.RSS_FEEDS, since=cutoff_dt, official=official)
 
     # Wikipedia
-    wiki_json = wiki.fetch_front_page()
-    _write_json(Path("data/wikipedia.json"), wiki_json)
-    if verbose:
-        print("[build] Wrote data/wikipedia.json")
+    _fetch_json("data/wikipedia.json", wiki.fetch_front_page)
 
     # API Spend
     yesterday = datetime.now(timezone.utc).date().isoformat()
-    spend_json = spend.summarize_spend(yesterday)
-    _write_json(Path("data/api_spend.json"), spend_json)
-    if verbose:
-        print("[build] Wrote data/api_spend.json")
+    _fetch_json("data/api_spend.json", spend.summarize_spend, yesterday)
 
     # YouTube
-    yt_channels: list[str] = []
-    yt_json = {
-        "title": "YouTube",
-        "items": youtube.fetch_videos(yt_channels),
-    }
-    _write_json(Path("data/youtube.json"), yt_json)
-    if verbose:
-        print("[build] Wrote data/youtube.json")
+    _fetch_json("data/youtube.json", youtube.fetch_videos, config.YOUTUBE_CHANNELS)
 
     # Facebook
-    fb_pages: list[str] = []
-    fb_json = {
-        "title": "Facebook",
-        "items": facebook.fetch_posts(fb_pages),
-    }
-    _write_json(Path("data/facebook.json"), fb_json)
-    if verbose:
-        print("[build] Wrote data/facebook.json")
+    _fetch_json("data/facebook.json", facebook.fetch_posts, config.FACEBOOK_PAGES)
 
     # CALDAV
-    cal_json = {
-        "title": "Today’s Events",
-        "items": caldav.fetch_events(yesterday),
-    }
-    _write_json(Path("data/caldav.json"), cal_json)
-    if verbose:
-        print("[build] Wrote data/caldav.json")
+    _fetch_json("data/caldav.json", caldav.fetch_events, yesterday)
 
     # Weather (ensure placeholder SVG exists)
-    svg_meta = weather_mod.build_daily_svg(Path("assets/charts/weather.svg"))
-    weather_json = {
-        "title": "Weather",
-        "svg_path": svg_meta["svg_path"],
-        "items": [],
-    }
-    _write_json(Path("data/weather.json"), weather_json)
-    if verbose:
-        print("[build] Wrote data/weather.json")
+    _fetch_json("data/weather.json", weather_mod.build_daily_svg, config.WEATHER_SVG_PATH)
 
 
 def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:

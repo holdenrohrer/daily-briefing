@@ -255,6 +255,7 @@ def fetch_rss(
         meta["official"] = True
 
     return {
+        "title": "RSS Highlights",
         "items": all_items,
         "groups": groups,
         "meta": meta,

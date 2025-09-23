@@ -18,4 +18,4 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
 </svg>
 """
     p.write_text(svg, encoding="utf-8")
-    return {"svg_path": str(p), "generated_at": now}
+    return {"title": "Weather", "svg_path": str(p), "generated_at": now, "items": []}
