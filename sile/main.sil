@@ -47,6 +47,8 @@
 \caldavsection
 \weathersection
 
+\verticalfill
+
 % End of document
 
 \end{document}

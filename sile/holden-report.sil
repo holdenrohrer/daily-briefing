@@ -40,6 +40,11 @@
   \break
 }
 
+% Vertical fill to push remaining content to the bottom of the page
+\define[command=verticalfill]{
+  \skip[height=0pt plus 1000pt]
+}
+
 % Running header text (used by book class' running headers)
 \define[command=hrHeader]{
   \font[family=JetBrains Mono, weight=700, size=12pt]{\Accent{Holden’s Daily Report}}
