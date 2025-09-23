@@ -28,17 +28,20 @@
       end
 
       local limit = math.min(#items, 5)
-      for i = 1, limit do
-        local it = items[i] or {}
-        local title = tostring(it.title or "(untitled)")
-        local source = tostring(it.source or "")
-        local line = "• " .. title
-        if source ~= "" then
-          line = line .. " — " .. source
+      SILE.call("itemize", {}, function()
+        for i = 1, limit do
+          local it = items[i] or {}
+          local title = tostring(it.title or "(untitled)")
+          local source = tostring(it.source or "")
+          SILE.call("item", {}, function()
+            local line = title
+            if source ~= "" then
+              line = line .. " — " .. source
+            end
+            SILE.typesetter:typeset(line)
+          end)
         end
-        SILE.typesetter:typeset(line)
-        SILE.call("par")
-      end
+      end)
     }
   }
 }
