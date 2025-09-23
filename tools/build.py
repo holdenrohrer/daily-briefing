@@ -24,6 +24,7 @@ from typing import Any, Dict, Callable
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+os.chdir(PROJECT_ROOT)
 import importlib
 from types import ModuleType
 from tools import config
@@ -41,8 +42,6 @@ def _resolve_getter(section: str, func_name: str, verbose: bool = False):
     Returns a callable; raises ImportError if none found.
     """
     candidates = [f"sections.{section}.build"]
-    # Primary tools candidate mirrors the section name
-    candidates.append(f"tools.{section}")
 
     # Common aliases for historically different module names
     alias_map = {
@@ -51,6 +50,7 @@ def _resolve_getter(section: str, func_name: str, verbose: bool = False):
     }
     if section in alias_map:
         candidates.append(f"tools.{alias_map[section]}")
+        candidates.append(f"sections.{alias_map[section]}.build")
 
     # Try a tools module with underscores removed (e.g., "api_spend" -> "apispend")
     if "_" in section:
@@ -123,77 +123,6 @@ def _parse_iso(ts: str | None) -> datetime | None:
     except Exception:
         return None
 
-
-def _build_placeholder_data() -> Dict[str, Any]:
-    """
-    Placeholder normalized structure for all sections.
-    Includes titles and minimal items to make SILE output visibly change.
-    """
-    now = _iso_now()
-    yesterday = datetime.now(timezone.utc).date().isoformat()
-    data: Dict[str, Any] = {
-        "generated_at": now,
-        "version": 2,
-        "sections": {
-            "rss": {
-                "title": "RSS Highlights",
-                "items": [
-                    {
-                        "title": "Placeholder: Ars Technica",
-                        "link": "https://feeds.arstechnica.com/arstechnica/index",
-                        "source": "Ars Technica",
-                        "published": now,
-                        "summary": "This is a placeholder RSS item to demo layout.",
-                    }
-                ],
-            },
-            "wikipedia": {
-                "title": "Wikipedia Front Page",
-                "summary": "Placeholder summary of Wikipedia's main page.",
-                "link": "https://en.wikipedia.org/wiki/Main_Page",
-                "updated": now,
-            },
-            "api_spend": {
-                "title": "API Spend (Yesterday)",
-                "date": yesterday,
-                "total_usd": 0.0,
-                "by_service": [],
-                "top_endpoints": [],
-            },
-            "youtube": {
-                "title": "YouTube",
-                "items": [
-                    {
-                        "title": "Placeholder Video",
-                        "channel": "Example Channel",
-                        "published": now,
-                        "link": "https://youtube.com/",
-                    }
-                ],
-            },
-            "facebook": {
-                "title": "Facebook",
-                "items": [],
-            },
-            "caldav": {
-                "title": "Today’s Events",
-                "items": [],
-            },
-            "weather": {
-                "title": "Weather",
-                "svg_path": "assets/charts/weather.svg",
-                "items": [],
-            },
-        },
-        "sources": [
-            {"name": "Ars Technica RSS", "url": "https://feeds.arstechnica.com/arstechnica/index"},
-            {"name": "Pluralistic RSS", "url": "https://pluralistic.net/feed/"},
-        ],
-        "notes": [
-            "This is placeholder data. Populate via tools/* modules as they land."
-        ],
-    }
-    return data
 
 def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None = None, official: bool = False) -> None:
     """
