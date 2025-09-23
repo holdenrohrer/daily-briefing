@@ -64,6 +64,16 @@
       if ts and ts.liner then
         local bw = toNum(SU.cast("length", borderw))
         local ex = toNum(SU.cast("length", options.fudge or "0.3em"))
+
+        -- Track continuous vertical rules across glue by aggregating extents per page and section instance.
+        SILE.scratch.__sectionbox_state = SILE.scratch.__sectionbox_state or {}
+        SILE.scratch.__sectionbox_uid = (SILE.scratch.__sectionbox_uid or 0) + 1
+        local uid = SILE.scratch.__sectionbox_uid
+        local function currentFolio()
+          local c = SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio
+          return (c and c.value) or 1
+        end
+
         ts:liner("sectionbox", content, function (self, typesetter, line)
           local x = (typesetter.frame and typesetter.frame.state and typesetter.frame.state.cursorX) or 0
           local y = (typesetter.frame and typesetter.frame.state and typesetter.frame.state.cursorY) or 0
@@ -71,10 +81,29 @@
           local d = toNum(line and line.depth)
           local w = toNum(line and line.width)
 
-          -- Draw side borders for this line
+          local top = y - h - ex
+          local bottom = y + d + ex
+          local left = x
+          local right = x + w
+
+          -- Aggregate extents per page and draw a continuous rule spanning all intervening glue.
+          local folio = currentFolio()
+          local st = SILE.scratch.__sectionbox_state
+          st[folio] = st[folio] or {}
+          local bs = st[folio][uid]
+          if not bs then
+            bs = { xL = left, xR = right, yTop = top, yBottom = bottom }
+          else
+            if left < bs.xL then bs.xL = left end
+            if right > bs.xR then bs.xR = right end
+            if top < bs.yTop then bs.yTop = top end
+            if bottom > bs.yBottom then bs.yBottom = bottom end
+          end
+          st[folio][uid] = bs
+
           SILE.outputter:pushColor(color)
-          SILE.outputter:drawRule(x, y - h - ex, bw, h + d + 2*ex)
-          SILE.outputter:drawRule(x + w - bw, y - h - ex, bw, h + d + 2*ex)
+          SILE.outputter:drawRule(bs.xL, bs.yTop, bw, bs.yBottom - bs.yTop)
+          SILE.outputter:drawRule(bs.xR - bw, bs.yTop, bw, bs.yBottom - bs.yTop)
           SILE.outputter:popColor()
 
           -- Output the actual line content
