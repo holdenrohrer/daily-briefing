@@ -4,6 +4,11 @@ import os
 import ssl
 import urllib.parse
 import urllib.request
+import json
+import matplotlib
+import matplotlib.dates as mdates
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_svg import FigureCanvasSVG
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,7 +61,7 @@ def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
     )
     ctx = ssl.create_default_context()
     with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
-        return typing_cast_dict_any(__import__("json").loads(resp.read().decode("utf-8")))
+        return typing_cast_dict_any(json.loads(resp.read().decode("utf-8")))
 
 
 def typing_cast_dict_any(x: Any) -> Dict[str, Any]:
@@ -129,26 +134,23 @@ def _polyline(points: List[Tuple[float, float]]) -> str:
 
 def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     """
-    Fetch hourly weather (temp C, humidity %, precip %), render a compact SVG line chart,
-    and return metadata for JSON consumers.
+    Fetch hourly weather (temp C, humidity %, precip %), render three ggplot-like SVG charts
+    using matplotlib (one per series), and return metadata for JSON consumers.
 
-    MVP behavior:
+    Behavior:
     - Defaults to San Francisco coordinates unless WEATHER_LAT/LON are set.
-    - Draws next (up to) 24 hours as three lines:
-        red = temperature (°C, autoscaled),
-        blue = humidity (%),
-        green = precipitation probability (%).
-    - On failure, writes a placeholder SVG with the error message.
+    - Next (up to) 24 hours of:
+        temp (°C, autoscaled),
+        humidity (%),
+        precipitation probability (%).
+    - On failure, writes placeholder SVGs with an error message.
     """
     now = datetime.now(timezone.utc).isoformat()
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
+    base = Path(path)
+    base.parent.mkdir(parents=True, exist_ok=True)
 
     lat = _env_float("WEATHER_LAT", 37.7749)
     lon = _env_float("WEATHER_LON", -122.4194)
-
-    width, height = 640, 220
-    pad = (40, 24, 12, 32)  # left, top, right, bottom
 
     error_msg = None
     points: List[HourPoint] = []
@@ -160,85 +162,103 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     except Exception as e:  # noqa: BLE001
         error_msg = f"{type(e).__name__}: {e}"
 
+    # Derive output file names (relative to provided base path)
+    temp_path = base.with_name(base.stem + "_temp.svg")
+    hum_path = base.with_name(base.stem + "_humidity.svg")
+    prec_path = base.with_name(base.stem + "_precip.svg")
+
+    def _write_error_svg(pth: Path, msg: str) -> None:
+        # Minimal placeholder using matplotlib SVG backend for consistency
+        fig = Figure(figsize=(6.4, 2.2), dpi=100)
+        FigureCanvasSVG(fig)
+        ax = fig.add_subplot(1, 1, 1)
+        ax.axis("off")
+        ax.text(0.02, 0.80, "Weather unavailable", fontsize=12, fontfamily="monospace")
+        ax.text(0.02, 0.62, msg, fontsize=10, fontfamily="monospace", wrap=True)
+        ax.text(0.02, 0.06, f"Generated {now}", fontsize=8, fontfamily="monospace")
+        fig.savefig(pth, format="svg")
+
     if error_msg:
-        svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-  <rect width="{width}" height="{height}" fill="white" stroke="black" stroke-width="1"/>
-  <text x="16" y="40" font-family="JetBrains Mono, monospace" font-size="14" fill="black">Weather unavailable</text>
-  <text x="16" y="62" font-family="JetBrains Mono, monospace" font-size="12" fill="black">{error_msg}</text>
-  <text x="16" y="{height-12}" font-family="JetBrains Mono, monospace" font-size="10" fill="black">Generated {now}</text>
-</svg>
-"""
-        p.write_text(svg, encoding="utf-8")
+        # Write placeholders for all expected outputs, including the legacy base path
+        for pth in (base, temp_path, hum_path, prec_path):
+            _write_error_svg(pth, error_msg)
         return {
             "title": "Weather",
-            "svg_path": str(p),
+            "svg_path": str(base),
+            "svg_paths": {
+                "temperature": str(temp_path),
+                "humidity": str(hum_path),
+                "precip": str(prec_path),
+            },
             "generated_at": now,
             "lat": lat,
             "lon": lon,
             "error": error_msg,
             "items": [],
+            "units": {
+                "temperature": "C",
+                "humidity": "%",
+                "precipitation_probability": "%",
+            },
+            "source": "open-meteo",
         }
 
-    coords = _scale_points(points, width, height, pad)
-    # Axis and grid (simple)
-    left, top, right, bottom = pad
-    inner_w = width - left - right
-    inner_h = height - top - bottom
-    x0 = left
-    y0 = top + inner_h
+    # Prepare arrays
+    times = [hp.time for hp in points]
+    temps = [hp.temperature_c for hp in points]
+    hums = [hp.humidity_pct for hp in points]
+    precs = [hp.precip_pct for hp in points]
 
-    # Build hour tick labels at 0, 6, 12, 18, 23
-    tick_indices = [0, 6, 12, 18, len(points) - 1]
-    tick_labels = []
-    for i in sorted(set(max(0, min(len(points) - 1, t)) for t in tick_indices)):
-        t = points[i].time
-        # Show "HH:MM" from ISO "YYYY-MM-DDTHH:MM"
-        label = (t.split("T", 1)[1] if "T" in t else t)[0:5]
-        x = left + inner_w * (i / max(1, (len(points) - 1)))
-        tick_labels.append((x, label))
+    def _plot_series_svg(
+        pth: Path,
+        series_times: List[str],
+        values: List[float],
+        ylabel: str,
+        color: str,
+        ylim: tuple[float, float] | None = None,
+    ) -> None:
+        matplotlib.style.use("ggplot")
+        fig = Figure(figsize=(6.4, 2.2), dpi=100)
+        FigureCanvasSVG(fig)
+        ax = fig.add_subplot(1, 1, 1)
 
-    temp_min = min(p.temperature_c for p in points)
-    temp_max = max(p.temperature_c for p in points)
+        # Parse ISO times like "YYYY-MM-DDTHH:MM" (possibly with 'Z')
+        dts: List[datetime] = []
+        for t in series_times:
+            dt = None
+            try:
+                dt = datetime.fromisoformat(t)
+            except Exception:
+                if t.endswith("Z"):
+                    try:
+                        dt = datetime.fromisoformat(t.replace("Z", "+00:00"))
+                    except Exception:
+                        dt = None
+            if dt is None:
+                dt = datetime.now()
+            dts.append(dt)
 
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-  <rect width="{width}" height="{height}" fill="white" stroke="black" stroke-width="1"/>
-  <!-- Plot area -->
-  <rect x="{left}" y="{top}" width="{inner_w}" height="{inner_h}" fill="none" stroke="#DDD"/>
-  <!-- Gridlines (25%, 50%, 75%) -->
-  <g stroke="#EEE" stroke-width="1">
-    <line x1="{left}" y1="{top + inner_h*0.25:.1f}" x2="{left+inner_w}" y2="{top + inner_h*0.25:.1f}"/>
-    <line x1="{left}" y1="{top + inner_h*0.50:.1f}" x2="{left+inner_w}" y2="{top + inner_h*0.50:.1f}"/>
-    <line x1="{left}" y1="{top + inner_h*0.75:.1f}" x2="{left+inner_w}" y2="{top + inner_h*0.75:.1f}"/>
-  </g>
+        ax.plot(dts, values, color=color, linewidth=2)
 
-  <!-- Series -->
-  <polyline fill="none" stroke="#d62728" stroke-width="2" points="{_polyline(coords['temp'])}"/>
-  <polyline fill="none" stroke="#1f77b4" stroke-width="2" points="{_polyline(coords['hum'])}"/>
-  <polyline fill="none" stroke="#2ca02c" stroke-width="2" points="{_polyline(coords['prec'])}"/>
+        ax.set_xlabel("Time")
+        ax.set_ylabel(ylabel)
+        if ylim is not None:
+            ax.set_ylim(*ylim)
 
-  <!-- Axes -->
-  <line x1="{x0}" y1="{top}" x2="{x0}" y2="{y0}" stroke="#AAA"/>
-  <line x1="{x0}" y1="{y0}" x2="{left+inner_w}" y2="{y0}" stroke="#AAA"/>
+        # Hourly ticks and labels
+        ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
 
-  <!-- Legend -->
-  <g font-family="JetBrains Mono, monospace" font-size="11" fill="#000">
-    <rect x="{left}" y="6" width="10" height="2" fill="#d62728"/><text x="{left+14}" y="10">Temp (°C, min {temp_min:.0f}, max {temp_max:.0f})</text>
-    <rect x="{left+220}" y="6" width="10" height="2" fill="#1f77b4"/><text x="{left+234}" y="10">Humidity (%)</text>
-    <rect x="{left+360}" y="6" width="10" height="2" fill="#2ca02c"/><text x="{left+374}" y="10">Precip (%)</text>
-  </g>
+        ax.grid(True, which="major", axis="both")
+        fig.autofmt_xdate(rotation=0)
+        fig.tight_layout(pad=0.5)
+        fig.savefig(pth, format="svg")
 
-  <!-- X ticks -->
-  <g font-family="JetBrains Mono, monospace" font-size="10" fill="#000">
-{"".join(f'    <text x="{x:.1f}" y="{y0+14}" text-anchor="middle">{label}</text>\\n' for x, label in tick_labels)}  </g>
-
-  <!-- Footer -->
-  <g font-family="JetBrains Mono, monospace" font-size="10" fill="#000">
-    <text x="{left}" y="{height-10}">Lat {lat:.4f}, Lon {lon:.4f}</text>
-    <text x="{width-8}" y="{height-10}" text-anchor="end">Generated {now}</text>
-  </g>
-</svg>
-"""
-    p.write_text(svg, encoding="utf-8")
+    # Render three charts (also write the temperature chart to the legacy base path)
+    _plot_series_svg(temp_path, times, temps, "Temperature (°C)", "#d62728")
+    _plot_series_svg(hum_path, times, hums, "Humidity (%)", "#1f77b4", ylim=(0, 100))
+    _plot_series_svg(prec_path, times, precs, "Precipitation (%)", "#2ca02c", ylim=(0, 100))
+    _plot_series_svg(base, times, temps, "Temperature (°C)", "#d62728")
 
     items = [
         {
@@ -251,7 +271,12 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     ]
     return {
         "title": "Weather",
-        "svg_path": str(p),
+        "svg_path": str(base),
+        "svg_paths": {
+            "temperature": str(temp_path),
+            "humidity": str(hum_path),
+            "precip": str(prec_path),
+        },
         "generated_at": now,
         "lat": lat,
         "lon": lon,
