@@ -29,9 +29,8 @@
 \define[command=sectiontitle]{
   \needspace
   \font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
-  \nobreak
+  \par
   \skip[height=.25em]
-  \nobreak
   \noindent
 }
 
