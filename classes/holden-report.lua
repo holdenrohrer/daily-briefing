@@ -139,5 +139,29 @@ function builtin_dump(val, name, indent, seen)
   end
 end
 
+function class:finish ()
+   SILE.inputter:postamble()
+   SILE.typesetter:endline()
+   --SILE.call("vfill")
+   while not SILE.typesetter:isQueueEmpty() do
+      SILE.call("supereject")
+      SILE.typesetter:leaveHmode(true)
+      SILE.typesetter:buildPage()
+      if not SILE.typesetter:isQueueEmpty() then
+         SILE.typesetter:initNextFrame()
+      end
+   end
+   SILE.typesetter:runHooks("pageend") -- normally run by the typesetter
+   self:endPage()
+   if SILE.typesetter and not SILE.typesetter:isQueueEmpty() then
+      SU.error("Queues are not empty as expected after ending last page", true)
+   end
+   SILE.outputter:finish()
+   self:runHooks("finish")
+end
+
+class:registerCommand("vfilll", function (_, _)
+    SILE.typesetter:pushVglue(SILE.types.node.vglue(SILE.types.length(0, 1e26, 0)))
+end)
 
 return class
