@@ -1,5 +1,5 @@
 % Weather section with inline SVG chart (MVP)
-\use[module=packages/graphics]
+\use[module=packages.graphics]
 
 \define[command=weathersection]{
   \sectionbox{
