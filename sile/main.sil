@@ -34,7 +34,7 @@
 \caldavsection
 \weathersection
 
-\glue[height=1filll]
+\glue[height=1fil]
 \font[size=7pt]{\metadatasection}
 
 % End of document
