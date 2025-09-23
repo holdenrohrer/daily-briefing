@@ -1,3 +1,9 @@
+-- NOTE: This file has been detected in classes/holden-report.lua.
+-- For the refactor we moved the SILE-facing Lua class under sile/classes/
+-- so SILE can find it as 'sile/classes/holden-report.lua'.  Please add
+-- a copy of this file at 'sile/classes/holden-report.lua' (or create a
+-- symlink) so the SILE templates reference the expected path.
+--
 --- holden-report document class.
 -- Inherit from plain, define frames, and render header/footer every page.
 
