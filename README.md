@@ -20,6 +20,8 @@ Architecture (high level):
 - Per-section pipeline: each section has a Python producer (tools/<section>.py) that writes data/<section>.json, a SILE section class (sile/sections/<section>.sil) that renders the section, and the main document includes those classes.
 - Typesetting (SILE): holden-report.sil is the top-level class (frames, header, footer). It also hosts shared JSON utilities. Each section reads its own JSON file.
 - Layout strategy: Explicit SILE frames for page boundaries; “section boxes” that can flow multiple short sections onto one page; page numbers.
+- SILE is never generated. Instead, SILE uses the built-in Lua
+  interpreter to read json from the data/ folder.
 
 Dev environment (Nix Flake):
 - Reproducible shell with SILE and Python preinstalled.
@@ -58,10 +60,5 @@ Pagination & layout:
 - Use SILE frames for sharp page edges and consistent margins.
 - Header: Running header “Holden’s Daily Report”; footer with page numbers.
 - Collate short sections using vertical boxes to avoid orphaned whitespace.
-
-Next steps:
-- Keep holden-report.sil as the top-level class and add per-section SILE classes under sile/sections/.
-- Add per-section Python producers that write data/<section>.json and update the orchestrator to call them.
-- Implement the RSS vertical slice end-to-end (tools/rss.py -> data/rss.json -> sile/sections/rss.sil -> PDF).
 
 License: TBD
