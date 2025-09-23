@@ -53,7 +53,6 @@
       local midGap = options.midgap or "0.4em"
       local bottomGap = options.bottomgap or "0.35em"
 
-      -- No needspace here: avoid forcing a page break before each sectionbox
       SILE.call("skip", { height = topGap })
       SILE.call("Gold", {}, function ()
         SILE.call("hrule", { height = borderw, width = "100%lw" })
