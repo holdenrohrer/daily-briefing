@@ -1,11 +1,11 @@
 % Weather section with inline SVG chart (MVP)
-\use[module=packages.graphics]
+\use[module=packages.svg]
 
 \define[command=weathersection]{
   \sectionbox{
     \sectiontitle{Weather}
     \small{Hourly temperature, humidity, and precipitation (next 24h).}
     \par
-    \includegraphics[src=assets/charts/weather.svg, width=100%lw]
+    \svg[src=assets/charts/weather.svg, width=100%lw]
   }
 }
