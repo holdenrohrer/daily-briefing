@@ -193,8 +193,7 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: b
     env = os.environ.copy()
     env["REPORT_DATA_JSON"] = str(data_json.resolve())
     _ensure_dir(output_pdf.parent)
-    if_debug_boxes = []
-    cmd = ["sile", "--luarocks-tree", "sile/lua_modules", *if_debug_boxes, "-o", str(output_pdf), '--', str(sile_main)]
+    cmd = ["sile", "--luarocks-tree", "sile/lua_modules", "-o", str(output_pdf), '--', str(sile_main)]
     if verbose:
         print(f"[build] Running: {' '.join(cmd)}")
     try:
@@ -210,11 +209,6 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: b
     # Capture SILE output (print only on error or verbose)
     stdout = proc.stdout or ""
     stderr = proc.stderr or ""
-    if verbose:
-        if stdout:
-            print(stdout, end="")
-        if stderr:
-            print(stderr, end="", file=sys.stderr)
 
     # Heuristic: Treat known SILE error patterns as failure even if exit code is 0
     def _looks_like_sile_error(s: str) -> bool:
@@ -236,15 +230,13 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: b
         )
         rc = 1
 
-    if rc == 0:
-        if not verbose:
-            print(f"[build] OK: {output_pdf}")
-    else:
-        if not verbose:
-            if stdout:
-                print(stdout, end="")
-            if stderr:
-                print(stderr, end="", file=sys.stderr)
+     if rc == 0 and not verbose:
+         print(f"[build] OK: {output_pdf}")
+     else:
+         if stdout:
+             print(stdout, end="")
+         if stderr:
+             print(stderr, end="", file=sys.stderr)
         print(f"[build] SILE exited with {rc}", file=sys.stderr)
     return rc
 
@@ -275,19 +267,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--skip-sile",
         action="store_true",
         help="Only build data JSON; do not run SILE.",
-    )
-    p.add_argument(
-        "--debug-boxes",
-        dest="debug_boxes",
-        action="store_true",
-        default=True,
-        help="Enable SILE debug frame boxes (default: on).",
-    )
-    p.add_argument(
-        "--no-debug-boxes",
-        dest="debug_boxes",
-        action="store_false",
-        help="Disable SILE debug frame boxes.",
     )
     p.add_argument(
         "-v",
@@ -336,7 +315,6 @@ def main(argv: list[str] | None = None) -> int:
         sile_main=sile_main,
         output_pdf=output_pdf,
         data_json=data_json,
-        debug_boxes=bool(args.debug_boxes),
         verbose=bool(args.verbose),
     )
 
