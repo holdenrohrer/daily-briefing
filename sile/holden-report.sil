@@ -52,11 +52,15 @@
       local topGap = options.topgap or "0.35em"
       local midGap = options.midgap or "0.4em"
       local bottomGap = options.bottomgap or "0.35em"
+      local leftGap = options.leftgap or "-6pt"
+      local rightGap = options.rightgap or "-6pt"
 
       SILE.call("skip", { height = topGap })
 
       local ts = SILE.typesetter
       local bw = toNum(SU.cast("length", borderw))
+      local lg = toNum(SU.cast("length", leftGap))
+      local rg = toNum(SU.cast("length", rightGap))
 
       -- Track continuous vertical rules across glue by aggregating extents per page and section instance.
       SILE.scratch.__sectionbox_state = SILE.scratch.__sectionbox_state or {}
@@ -72,11 +76,12 @@
       local innerContent = function ()
         local function goldOutsetHrule()
           SILE.settings:temporarily(function ()
-            SILE.call("set", { parameter = "document.lskip", value = "-6pt" })
-            SILE.call("set", { parameter = "document.rskip", value = "-6pt" })
+            SILE.call("set", { parameter = "document.lskip", value = leftGap })
+            SILE.call("set", { parameter = "document.rskip", value = rightGap })
             SILE.call("Gold", {}, function ()
               SILE.call("hrule", { height = borderw, width = "100%lw" })
             end)
+            SILE.call("par")
           end)
         end
 
@@ -94,8 +99,8 @@
         local top = y-bw
         local bottom = y
         local f = typesetter.frame
-        local left = (f and f.left and toNum(f:left())) or x
-        local right = (f and f.right and toNum(f:right())) or x
+        local left = ((f and f.left and toNum(f:left())) or x) + lg
+        local right = ((f and f.right and toNum(f:right())) or x) - rg
 
         -- Aggregate extents per page and draw a continuous rule spanning all intervening glue.
         local folio = currentFolio()
