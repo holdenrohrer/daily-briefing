@@ -65,10 +65,9 @@ function class:endPage ()
       for uid, bs in pairs(st[folio]) do
         local opts = optsmap[uid] or {}
         local bw = opts.bw or 1
-        local color = opts.color or "#c9b458"
+        local color = SILE.types.color(opts.color or "#c9b458")
         if bs.xL and bs.xR and bs.yTop and bs.yBottom and bs.yBottom > bs.yTop then
           SILE.outputter:pushColor(color)
-          builtin_dump(color)
           SILE.outputter:drawRule(bs.xL, bs.yTop, bw, (bs.yBottom - bs.yTop))
           SILE.outputter:drawRule(bs.xR, bs.yTop, bw, (bs.yBottom - bs.yTop))
           SILE.outputter:popColor()
