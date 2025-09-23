@@ -36,17 +36,62 @@
   \skip[height=.25em]
 }
 
-% Simple section box wrapper (fallback without framebox package)
-\define[command=sectionbox]{
-  \needspace
-  \skip[height=0.35em]
-  \Gold{\hrule[height=0.8pt, width=100%lw]}
-  \skip[height=0.4em]
-  \Ink{\process}
-  \skip[height=0.4em]
-  \Gold{\hrule[height=0.8pt, width=100%lw]}
-  \skip[height=0.35em]
-  \break
+% Section box using typesetter:liner for per-line vertical gold rules.
+\lua{
+  do
+    local class = SILE.documentState.documentClass
+
+    local function toNum(x)
+      if type(x) == "table" and x.tonumber then return x:tonumber() end
+      return x or 0
+    end
+
+    class:registerCommand("sectionbox", function (options, content)
+      local borderw = options.border or "0.8pt"
+      local color = options.color or "#c9b458"
+      local topGap = options.topgap or "0.35em"
+      local midGap = options.midgap or "0.4em"
+      local bottomGap = options.bottomgap or "0.35em"
+
+      SILE.call("needspace")
+      SILE.call("skip", { height = topGap })
+      SILE.call("Gold", {}, function ()
+        SILE.call("hrule", { height = borderw, width = "100%lw" })
+      end)
+      SILE.call("skip", { height = midGap })
+
+      local ts = SILE.typesetter
+      if ts and ts.liner then
+        local bw = toNum(SU.cast("length", borderw))
+        ts:liner("sectionbox", content, function (self, typesetter, line)
+          local x = (typesetter.frame and typesetter.frame.state and typesetter.frame.state.cursorX) or 0
+          local y = (typesetter.frame and typesetter.frame.state and typesetter.frame.state.cursorY) or 0
+          local h = toNum(line and line.height)
+          local d = toNum(line and line.depth)
+          local w = toNum(line and line.width)
+
+          -- Draw side borders for this line
+          SILE.outputter:pushColor(color)
+          SILE.outputter:drawRule(x, y - h, bw, h + d)
+          SILE.outputter:drawRule(x + w - bw, y - h, bw, h + d)
+          SILE.outputter:popColor()
+
+          -- Output the actual line content
+          self:outputContent(typesetter, line)
+        end)
+      else
+        -- Fallback: just process content in Ink color
+        SILE.call("Ink", {}, function () SILE.process(content) end)
+      end
+
+      SILE.call("skip", { height = midGap })
+      SILE.call("Gold", {}, function ()
+        SILE.call("hrule", { height = borderw, width = "100%lw" })
+      end)
+      SILE.call("skip", { height = bottomGap })
+      SILE.call("break")
+    end)
+  end
 }
 
 % Bulletless lists with customizable spacing between items.
