@@ -26,7 +26,7 @@ MVP typesetting (SILE):
 - [ ] Overall report look:
   - [x] tools/build.py option to enable visible debug boxes on output/brief.pdf (enable by default)
   - [x] vertical fill at the bottom of the page
-  - [ ] Remove indent from section headers and paragraphs
+  - [x] Remove indent from section headers and paragraphs
   - [ ] Don't use bullet points, use spacing between list items
   - [ ] Right running header with day of week and current date in ISO-8601
   - [ ] Light gold rectangle border around each sectionbox

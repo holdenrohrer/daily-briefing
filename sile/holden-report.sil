@@ -6,6 +6,7 @@
 % Color palette and baseline grid
 \use[module=packages.color]
 \set[parameter=document.baselineskip, value=0pt]
+\set[parameter=document.parindent, value=0pt]
 
 % Theme wrappers (single source of colors)
 \define[command=Ink]{\color[color=#111111]{\process}}
