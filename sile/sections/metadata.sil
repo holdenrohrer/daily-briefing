@@ -2,7 +2,7 @@
 \define[command=metadatasection]{
   \font[weight=200,size=9pt]{
     \novbreak
-    \script{
+    \lua{
       local jsonlib
       pcall(function() jsonlib = require("dkjson") end)
       if not jsonlib then pcall(function() jsonlib = require("cjson") end) end
