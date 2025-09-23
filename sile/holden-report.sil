@@ -54,10 +54,6 @@
       local bottomGap = options.bottomgap or "0.35em"
 
       SILE.call("skip", { height = topGap })
-      SILE.call("Gold", {}, function ()
-        SILE.call("hrule", { height = borderw, width = "100%lw" })
-      end)
-      SILE.call("skip", { height = midGap })
 
       local ts = SILE.typesetter
       if ts and ts.liner then
@@ -73,7 +69,19 @@
           return (c and c.value) or 1
         end
 
-        ts:liner("sectionbox", content, function (self, typesetter, line)
+        local innerContent = function ()
+          SILE.call("Gold", {}, function ()
+            SILE.call("hrule", { height = borderw, width = "100%lw" })
+          end)
+          SILE.call("skip", { height = midGap })
+          SILE.process(content)
+          SILE.call("skip", { height = midGap })
+          SILE.call("Gold", {}, function ()
+            SILE.call("hrule", { height = borderw, width = "100%lw" })
+          end)
+        end
+
+        ts:liner("sectionbox", innerContent, function (self, typesetter, line)
           local x = (typesetter.frame and typesetter.frame.state and typesetter.frame.state.cursorX) or 0
           local y = (typesetter.frame and typesetter.frame.state and typesetter.frame.state.cursorY) or 0
           local h = toNum(line and line.height)
@@ -109,14 +117,20 @@
           self:outputContent(typesetter, line)
         end)
       else
-        -- Fallback: just process content in Ink color
-        SILE.call("Ink", {}, function () SILE.process(content) end)
+        -- Fallback: wrap hrules and skips around content inside Ink color
+        SILE.call("Ink", {}, function ()
+          SILE.call("Gold", {}, function ()
+            SILE.call("hrule", { height = borderw, width = "100%lw" })
+          end)
+          SILE.call("skip", { height = midGap })
+          SILE.process(content)
+          SILE.call("skip", { height = midGap })
+          SILE.call("Gold", {}, function ()
+            SILE.call("hrule", { height = borderw, width = "100%lw" })
+          end)
+        end)
       end
 
-      SILE.call("skip", { height = midGap })
-      SILE.call("Gold", {}, function ()
-        SILE.call("hrule", { height = borderw, width = "100%lw" })
-      end)
       SILE.call("skip", { height = bottomGap })
     end)
   end
