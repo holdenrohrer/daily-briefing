@@ -168,26 +168,76 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
         return data
 
     # RSS
-    _fetch_json("data/rss.json", rss.fetch_rss, feeds=config.RSS_FEEDS, since=cutoff_dt, official=official)
+    rss_data = _fetch_json("data/rss.json", rss.fetch_rss, feeds=config.RSS_FEEDS, since=cutoff_dt, official=official)
 
     # Wikipedia
-    _fetch_json("data/wikipedia.json", wiki.fetch_front_page)
+    wiki_data = _fetch_json("data/wikipedia.json", wiki.fetch_front_page)
 
     # API Spend
     yesterday = datetime.now(timezone.utc).date().isoformat()
-    _fetch_json("data/api_spend.json", spend.summarize_spend, yesterday)
+    spend_data = _fetch_json("data/api_spend.json", spend.summarize_spend, yesterday)
 
     # YouTube
-    _fetch_json("data/youtube.json", youtube.fetch_videos, config.YOUTUBE_CHANNELS)
+    yt_data = _fetch_json("data/youtube.json", youtube.fetch_videos, config.YOUTUBE_CHANNELS)
 
     # Facebook
-    _fetch_json("data/facebook.json", facebook.fetch_posts, config.FACEBOOK_PAGES)
+    fb_data = _fetch_json("data/facebook.json", facebook.fetch_posts, config.FACEBOOK_PAGES)
 
     # CALDAV
-    _fetch_json("data/caldav.json", caldav.fetch_events, yesterday)
+    cal_data = _fetch_json("data/caldav.json", caldav.fetch_events, yesterday)
 
     # Weather (ensure placeholder SVG exists)
-    _fetch_json("data/weather.json", weather_mod.build_daily_svg, config.WEATHER_SVG_PATH)
+    weather_data = _fetch_json("data/weather.json", weather_mod.build_daily_svg, config.WEATHER_SVG_PATH)
+
+    # Metadata (for end-of-document display)
+    def _git_rev() -> str | None:
+        try:
+            out = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=PROJECT_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            rev = (out.stdout or "").strip()
+            return rev or None
+        except Exception:
+            return None
+
+    metadata: Dict[str, Any] = {
+        "title": "Metadata",
+        "created_iso": _iso_now(),
+        "cutoff_iso": cutoff_dt.isoformat() if cutoff_dt else None,
+        "official": bool(official),
+        "python_version": sys.version,
+        "git_rev": _git_rev(),
+        "sections": {
+            "rss": {
+                "items": len(rss_data.get("items", [])) if isinstance(rss_data, dict) else 0,
+                "sources": (rss_data.get("meta", {}) or {}).get("sources") if isinstance(rss_data, dict) else None,
+            },
+            "wikipedia": {
+                "updated": (wiki_data or {}).get("updated") if isinstance(wiki_data, dict) else None,
+            },
+            "api_spend": {
+                "date": (spend_data or {}).get("date") if isinstance(spend_data, dict) else None,
+                "total_usd": (spend_data or {}).get("total_usd") if isinstance(spend_data, dict) else None,
+            },
+            "youtube": {
+                "items": len(yt_data.get("items", [])) if isinstance(yt_data, dict) else 0,
+            },
+            "facebook": {
+                "items": len(fb_data.get("items", [])) if isinstance(fb_data, dict) else 0,
+            },
+            "caldav": {
+                "items": len(cal_data.get("items", [])) if isinstance(cal_data, dict) else 0,
+            },
+            "weather": {
+                "svg_path": (weather_data or {}).get("svg_path") if isinstance(weather_data, dict) else None,
+            },
+        },
+    }
+    _fetch_json("data/metadata.json", lambda: metadata)
 
 
 def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
