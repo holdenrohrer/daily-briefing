@@ -12,10 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-try:
-    import feedparser  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    feedparser = None  # type: ignore
+import feedparser  # type: ignore
 
 from tools.cache import read_cache, write_cache, make_key
 
@@ -162,8 +159,7 @@ def fetch_rss(
     Uses a simple file cache under data/.cache/rss with TTL to avoid repeated network calls.
 
     Notes:
-    - If the optional 'feedparser' module is available, it will be used to parse feeds.
-      Otherwise, a minimal XML parser fallback is used.
+    - Uses 'feedparser' to parse feeds; falls back to a minimal XML parser if needed.
     - If 'feeds' is None or empty, defaults are taken from $RSS_FEEDS (comma-separated)
       or a built-in set of popular feeds.
     """
@@ -187,41 +183,40 @@ def fetch_rss(
                 raw = _fetch_url(url, timeout=10.0)
                 parsed_items: List[Dict[str, Any]] = []
 
-                if feedparser is not None:
-                    d = feedparser.parse(raw)
-                    source_host = urlparse(url).netloc
-                    source_title = (getattr(d, "feed", {}) or {}).get("title") or source_host
-                    source_slug = _slugify(source_title or source_host)
-                    entries = list(getattr(d, "entries", []) or [])
-                    if entries:
-                        for entry in entries:
-                            title = unescape((entry.get("title") or "(untitled)")).strip()
-                            link = entry.get("link") or entry.get("id") or url
-                            if entry.get("published_parsed"):
-                                published = datetime.fromtimestamp(
-                                    calendar.timegm(entry["published_parsed"]),
-                                    tz=timezone.utc,
-                                ).isoformat()
-                            elif entry.get("updated_parsed"):
-                                published = datetime.fromtimestamp(
-                                    calendar.timegm(entry["updated_parsed"]),
-                                    tz=timezone.utc,
-                                ).isoformat()
-                            else:
-                                published = _safe_iso(entry.get("published") or entry.get("updated") or "")
-                            summary = unescape(entry.get("summary") or entry.get("description") or "")
-                            parsed_items.append(
-                                {
-                                    "title": title or "(untitled)",
-                                    "link": link,
-                                    "source": source_title,
-                                    "source_slug": source_slug,
-                                    "source_host": source_host,
-                                    "slug": _slugify(title),
-                                    "published": published,
-                                    "summary": summary,
-                                }
-                            )
+                d = feedparser.parse(raw)
+                source_host = urlparse(url).netloc
+                source_title = (getattr(d, "feed", {}) or {}).get("title") or source_host
+                source_slug = _slugify(source_title or source_host)
+                entries = list(getattr(d, "entries", []) or [])
+                if entries:
+                    for entry in entries:
+                        title = unescape((entry.get("title") or "(untitled)")).strip()
+                        link = entry.get("link") or entry.get("id") or url
+                        if entry.get("published_parsed"):
+                            published = datetime.fromtimestamp(
+                                calendar.timegm(entry["published_parsed"]),
+                                tz=timezone.utc,
+                            ).isoformat()
+                        elif entry.get("updated_parsed"):
+                            published = datetime.fromtimestamp(
+                                calendar.timegm(entry["updated_parsed"]),
+                                tz=timezone.utc,
+                            ).isoformat()
+                        else:
+                            published = _safe_iso(entry.get("published") or entry.get("updated") or "")
+                        summary = unescape(entry.get("summary") or entry.get("description") or "")
+                        parsed_items.append(
+                            {
+                                "title": title or "(untitled)",
+                                "link": link,
+                                "source": source_title,
+                                "source_slug": source_slug,
+                                "source_host": source_host,
+                                "slug": _slugify(title),
+                                "published": published,
+                                "summary": summary,
+                            }
+                        )
 
                 if not parsed_items:
                     # Fallback to minimal XML parsing
