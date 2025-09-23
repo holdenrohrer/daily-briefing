@@ -1,4 +1,4 @@
-% RSS section class: load data/rss.json and render grouped items
+% RSS section class: load data/rss.json and render a short list of items
 \define[command=rsssection]{
   \sectionbox{
     \sectiontitle{RSS Highlights}
@@ -15,96 +15,33 @@
         return
       end
 
-      -- Build groups from JSON (prefer data.groups if present)
-      local function _as_array(tbl)
-        local arr = {}
-        for k, v in pairs(tbl or {}) do
-          if type(v) == "table" then table.insert(arr, v) end
-        end
-        return arr
+      local meta = type(data.meta) == "table" and data.meta or {}
+      local hits = tostring(meta.cache_hits or 0)
+      local misses = tostring(meta.cache_misses or 0)
+      SILE.typesetter:typeset("Cache: hits " .. hits .. ", misses " .. misses)
+      SILE.call("par")
+
+      local items = data.items or data
+      if type(items) ~= "table" then
+        SILE.typesetter:typeset("Invalid RSS JSON schema.")
+        return
       end
 
-      local groups = {}
-      if type(data.groups) == "table" then
-        groups = _as_array(data.groups)
-      elseif type(data.items) == "table" then
-        groups = { { source = "RSS", source_slug = "rss", items = data.items } }
-      elseif type(data) == "table" and type(data.items) ~= "table" then
-        groups = {}
-      end
-
-      -- Filter out groups with no items (e.g., nothing since cutoff)
-      local filtered = {}
-      for _, g in ipairs(groups) do
-        if type(g.items) == "table" and #g.items > 0 then
-          table.insert(filtered, g)
-        end
-      end
-      groups = filtered
-
-      -- Sort groups: "ars-technica" first, then alphabetical by source
-      table.sort(groups, function(a, b)
-        local as = tostring(a.source_slug or "")
-        local bs = tostring(b.source_slug or "")
-        if as == "ars-technica" and bs ~= "ars-technica" then return true end
-        if bs == "ars-technica" and as ~= "ars-technica" then return false end
-        local an = tostring(a.source or as)
-        local bn = tostring(b.source or bs)
-        return an:lower() < bn:lower()
-      end)
-
-      local function _format_date(iso)
-        if type(iso) ~= "string" or iso == "" then return "" end
-        local s = iso:gsub("T", " ")
-        return string.sub(s, 1, 16)
-      end
-
-      for _, grp in ipairs(groups) do
-        local gname = tostring(grp.source or grp.source_slug or "(source)")
-        local gslug = tostring(grp.source_slug or ""):lower()
-        if gslug == "ars-technica" then
-          gname = gname .. " (no limit except the cutoff)"
-        end
-        -- Group header
-        SILE.typesetter:typeset(gname)
-        SILE.call("par")
-        SILE.typesetter:typeset("------------")
-        SILE.call("par")
-
-        -- Special hint for Pluralistic
-        if gslug == "pluralistic" then
-          SILE.typesetter:typeset("INSET ON LEFT 2in by 2in front image")
-          SILE.call("par")
-        end
-
-        -- Items
-        for i = 1, #grp.items do
-          local it = grp.items[i] or {}
+      local limit = math.min(#items, 5)
+      SILE.call("itemize", {}, function()
+        for i = 1, limit do
+          local it = items[i] or {}
           local title = tostring(it.title or "(untitled)")
-          local date = _format_date(tostring(it.published or ""))
-
-          -- Title + inline date (smaller, lighter)
-          SILE.typesetter:typeset(title)
-          if date ~= "" then
-            SILE.call("font", { size = "9pt", weight = 300 }, function()
-              SILE.typesetter:typeset(" (" .. date .. ")")
-            end)
-          end
-          SILE.call("par")
-
-          -- Subtitle (summary) indented, smaller/lighter
-          local subtitle = tostring(it.summary or "")
-          if subtitle ~= "" then
-            SILE.call("kern", { width = "2em" })
-            SILE.call("font", { size = "9pt", weight = 300 }, function()
-              SILE.typesetter:typeset(subtitle)
-            end)
-            SILE.call("par")
-          end
+          local source = tostring(it.source or "")
+          SILE.call("item", {}, function()
+            local line = title
+            if source ~= "" then
+              line = line .. " — " .. source
+            end
+            SILE.typesetter:typeset(line)
+          end)
         end
-
-        SILE.call("medskip")
-      end
+      end)
     }
   }
 }

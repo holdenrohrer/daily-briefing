@@ -124,12 +124,10 @@ def fetch_rss(
 
     for url in feeds:
         key = make_key(url)
-        no_limit = False
         cached, _meta = read_cache("rss", key, ttl)
         if cached is not None:
             items = cached
             cache_hits += 1
-            no_limit = any((it.get("source_slug") or "") == "ars-technica" for it in items)
         else:
             cache_misses += 1
             items = []
@@ -141,7 +139,6 @@ def fetch_rss(
                 source_host = urlparse(url).netloc
                 source_title = (getattr(d, "feed", {}) or {}).get("title") or source_host
                 source_slug = _slugify(source_title or source_host)
-                no_limit = (source_slug == "ars-technica")
                 entries = list(getattr(d, "entries", []) or [])
                 if entries:
                     for entry in entries:
@@ -174,7 +171,7 @@ def fetch_rss(
                         )
 
                 items = parsed_items
-                if per_feed_limit and per_feed_limit > 0 and not no_limit:
+                if per_feed_limit and per_feed_limit > 0:
                     items = items[:per_feed_limit]
 
                 # Write successful fetch to cache
@@ -229,7 +226,7 @@ def fetch_rss(
                 if pub_dt is not None and pub_dt >= since:
                     filtered_items.append(it)
             items = filtered_items
-        if per_feed_limit and per_feed_limit > 0 and not no_limit:
+        if per_feed_limit and per_feed_limit > 0:
             items = items[:per_feed_limit]
 
         all_items.extend(items)
