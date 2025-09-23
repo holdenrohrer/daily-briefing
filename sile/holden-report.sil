@@ -55,23 +55,34 @@
     SILE.settings:set("document.rskip", SILE.types.node.glue())
   end
 
-  -- Override itemize to suppress bullets and allow customizable spacing.
-  SILE.registerCommand("itemize", function (options, content)
+  local class = SILE.documentState.documentClass
+
+  -- Override itemize to suppress bullets and allow customizable spacing (scoped to this class).
+  class:registerCommand("itemize", function (options, content)
     local sep = options.itemsep or SILE.scratch.hr_list.itemsep_default
 
-    -- Temporarily replace \item within the scope of this list only.
-    local oldItem = SILE.Commands["item"]
-    SILE.Commands["item"] = function (opts, cont)
+    -- Save any existing class-level \item to restore after processing.
+    local prevItem = nil
+    if class._registeredCommands and class._registeredCommands["item"] then
+      prevItem = class._registeredCommands["item"]
+    end
+
+    -- Temporarily override \item within this command only.
+    class:registerCommand("item", function (opts, cont)
       _hr_noindent()
       SILE.process(cont)
       SILE.call("par")
       SILE.call("skip", { height = sep })
-    end
+    end)
 
     SILE.process(content)
 
-    -- Restore original \item (preserves numbering for enumerate elsewhere).
-    SILE.Commands["item"] = oldItem
+    -- Restore original \item in this class (or clear override).
+    if prevItem then
+      class:registerCommand("item", prevItem)
+    elseif class._registeredCommands then
+      class._registeredCommands["item"] = nil
+    end
   end)
 }
 
@@ -80,9 +91,16 @@
   \skip[height=0pt plus 1000pt]
 }
 
-% Running header text (used by book class' running headers)
+% Running header: Right-aligned day-of-week and ISO date (e.g., Monday 2025-09-22)
 \define[command=hrHeader]{
-  \font[family=JetBrains Mono, weight=700, size=12pt]{\Accent{Holden’s Daily Report}}
+  \lua{
+    local text = os.date("%A %Y-%m-%d")
+    SILE.call("font", { family = "JetBrains Mono", weight = 700, size = "12pt" }, function()
+      SILE.call("Accent", {}, function()
+        SILE.typesetter:typeset(text)
+      end)
+    end)
+  }
 }
 
 % Running footer content and style (high-level styling)

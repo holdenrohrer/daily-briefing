@@ -28,7 +28,7 @@ MVP typesetting (SILE):
   - [x] vertical fill at the bottom of the page
   - [x] Remove indent from section headers and paragraphs
   - [x] Don't use bullet points, use customizable spacing between list items
-  - [ ] Right running header with day of week and current date in ISO-8601
+  - [x] Right running header with day of week and current date in ISO-8601
   - [ ] Light gold rectangle border around each sectionbox
 
 Build pipeline:
