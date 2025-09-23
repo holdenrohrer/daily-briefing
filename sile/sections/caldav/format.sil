@@ -1,0 +1,7 @@
+% CALDAV section class (placeholder)
+\define[command=caldavsection]{
+  \sectionbox{
+    \sectiontitle{Today’s Events}
+    Using data/caldav.json (placeholder)
+  }
+}

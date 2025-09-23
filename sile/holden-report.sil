@@ -1,7 +1,7 @@
 % Set a default monospace body font (JetBrains Mono)
 \font[family=JetBrains Mono, size=10pt]
 
-% Frames and running header/footer are defined by the custom Lua class (classes/holden-report.lua).
+% Frames and running header/footer are defined by the custom Lua class (sile/classes/holden-report.lua).
 
 % Color palette and baseline grid
 \use[module=packages.color]

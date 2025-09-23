@@ -1,0 +1,21 @@
+% Wikipedia section class (placeholder)
+\define[command=wikipediasection]{
+  \sectionbox{
+    \sectiontitle{Wikipedia Front Page}
+    Using data/wikipedia.json (placeholder)
+
+this
+
+is
+
+more
+
+paragraph
+
+needs
+
+more
+
+cowbell
+  }
+}

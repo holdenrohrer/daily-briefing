@@ -1,7 +1,1 @@
-% Facebook section class (placeholder)
-\define[command=facebooksection]{
-  \sectionbox{
-    \sectiontitle{Facebook}
-    Using data/facebook.json (placeholder)
-  }
-}
+\include[src=facebook/format.sil]
