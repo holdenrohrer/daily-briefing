@@ -70,15 +70,21 @@
       end
 
       local innerContent = function ()
-        SILE.call("Gold", {}, function ()
-          SILE.call("hrule", { height = borderw, width = "100%lw" })
-        end)
+        local function goldOutsetHrule()
+          SILE.settings:temporarily(function ()
+            SILE.call("set", { parameter = "document.lskip", value = "-6pt" })
+            SILE.call("set", { parameter = "document.rskip", value = "-6pt" })
+            SILE.call("Gold", {}, function ()
+              SILE.call("hrule", { height = borderw, width = "100%lw" })
+            end)
+          end)
+        end
+
+        goldOutsetHrule()
         SILE.call("skip", { height = midGap })
         SILE.process(content)
         SILE.call("skip", { height = midGap })
-        SILE.call("Gold", {}, function ()
-          SILE.call("hrule", { height = borderw, width = "100%lw" })
-        end)
+        goldOutsetHrule()
       end
 
       ts:liner("sectionbox", innerContent, function (self, typesetter, line)
