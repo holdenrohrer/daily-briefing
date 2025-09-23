@@ -34,9 +34,8 @@
 \caldavsection
 \weathersection
 
-\vfill
+\lua{
+    SILE.typesetter:pushVglue(SILE.types.node.vglue(SILE.types.length(0, 1e26, 0)))
+}
 \font[size=7pt]{\metadatasection}
-
-% End of document
-
 \end{document}
