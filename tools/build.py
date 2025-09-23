@@ -189,7 +189,7 @@ def _write_per_section_jsons(verbose: bool = False) -> None:
         print("[build] Wrote data/weather.json")
 
 
-def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: bool, verbose: bool = False) -> int:
+def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, verbose: bool = False) -> int:
     env = os.environ.copy()
     env["REPORT_DATA_JSON"] = str(data_json.resolve())
     _ensure_dir(output_pdf.parent)
@@ -230,13 +230,13 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: b
         )
         rc = 1
 
-     if rc == 0 and not verbose:
-         print(f"[build] OK: {output_pdf}")
-     else:
-         if stdout:
-             print(stdout, end="")
-         if stderr:
-             print(stderr, end="", file=sys.stderr)
+    if rc == 0 and not verbose:
+        print(f"[build] OK: {output_pdf}")
+    else:
+        if stdout:
+            print(stdout, end="")
+        if stderr:
+            print(stderr, end="", file=sys.stderr)
         print(f"[build] SILE exited with {rc}", file=sys.stderr)
     return rc
 
