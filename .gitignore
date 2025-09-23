@@ -4,5 +4,7 @@
 
 output/*
 data/*
+assets/charts/*
 !output/.gitkeep
 !data/.gitkeep
+!assets/charts/.gitkeep
