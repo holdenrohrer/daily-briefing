@@ -88,7 +88,9 @@
 
         local top = y - h
         local bottom = y + d
-        local left = x
+        -- Anchor left rule to parent frame left edge to avoid multiple lines from indentation.
+        local f = typesetter.frame
+        local left = (f and f.left and toNum(f:left())) or x
         local right = x + w
 
         -- Aggregate extents per page and draw a continuous rule spanning all intervening glue.
