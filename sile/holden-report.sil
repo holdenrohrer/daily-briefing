@@ -5,6 +5,7 @@
 
 % Color palette and baseline grid
 \use[module=packages.color]
+\use[module=packages.lists]
 \set[parameter=document.baselineskip, value=0pt]
 \set[parameter=document.parindent, value=0pt]
 \set[parameter=current.parindent, value=0pt]
@@ -39,6 +40,39 @@
   \process
   \skip[height=0.25em]
   \break
+}
+
+% Bulletless lists with customizable spacing between items.
+% Usage: \itemize[itemsep=0.35em]{ \item{First} \item{Second} }
+% If itemsep is omitted, a default compact spacing is used.
+\lua{
+  if not SILE.scratch then SILE.scratch = {} end
+  SILE.scratch.hr_list = SILE.scratch.hr_list or { itemsep_default = "0.35em" }
+
+  local function _hr_noindent()
+    SILE.settings:set("current.parindent", SILE.types.node.glue())
+    SILE.settings:set("document.lskip", SILE.types.node.glue())
+    SILE.settings:set("document.rskip", SILE.types.node.glue())
+  end
+
+  -- Override itemize to suppress bullets and allow customizable spacing.
+  SILE.registerCommand("itemize", function (options, content)
+    local sep = options.itemsep or SILE.scratch.hr_list.itemsep_default
+
+    -- Temporarily replace \item within the scope of this list only.
+    local oldItem = SILE.Commands["item"]
+    SILE.Commands["item"] = function (opts, cont)
+      _hr_noindent()
+      SILE.process(cont)
+      SILE.call("par")
+      SILE.call("skip", { height = sep })
+    end
+
+    SILE.process(content)
+
+    -- Restore original \item (preserves numbering for enumerate elsewhere).
+    SILE.Commands["item"] = oldItem
+  end)
 }
 
 % Vertical fill to push remaining content to the bottom of the page
