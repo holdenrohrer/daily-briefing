@@ -14,8 +14,8 @@
 \loaddata
 
 % Placeholder sections using a simple boxed style
-\sectionbox{
-  \sectiontitle{Welcome}
+\sectionbox{%
+  \sectiontitle{Welcome}%
   This is a minimal placeholder for the daily report layout. Replace this text with real sections.
 }
 \sectionbox{
