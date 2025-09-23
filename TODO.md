@@ -23,7 +23,7 @@ MVP typesetting (SILE):
   - [x] Section header keep with section body.
   - [x] Glue between section title and section body
   - [x] Glue so that if there is only 30% of space left on a page, and the current section can't fit, skip to the next page
-- [ ] Overall report look:
+- [x] Overall report look:
   - [x] tools/build.py option to enable visible debug boxes on output/brief.pdf (enable by default)
   - [x] vertical fill at the bottom of the page
   - [x] Remove indent from section headers and paragraphs
@@ -45,12 +45,22 @@ Build pipeline:
   - [ ] Hash content (JSON + SVG) and short-circuit SILE when unchanged
   - [ ] Only write files when content differs (avoid noisy rebuilds)
   - [ ] Logging with timings and clear “cache hit/miss” messages
+- [ ] --official flag to record time of creation
+  - [ ] List only RSS stories, new notifications, etc., since last call
+    of --official, or 48 hours ago, whichever is closer to today.
 
 Data ingestion (Python):
 - [ ] RSS (feedparser):
-  - [ ] Read configured feeds (incl. https://feeds.arstechnica.com/arstechnica/index and https://pluralistic.net/feed/)
+  - [ ] Read configured feeds (incl. https://feeds.arstechnica.com/arstechnica/index and https://pluralistic.net/feed/, Alexander Codex Ten, thezvi.substack.com)
   - [ ] Normalize to JSON (title, link, source, published, summary)
   - [ ] Minimal module scaffold (tools/rss.py) with fetch_rss(feeds: list[str]) -> list[Item]
+  - [ ] Include marketing slugs 
+  - [ ] Group by source
+- [ ] Webcomics (possibly also RSS):
+  - [ ] Qwantz
+  - [ ] xkcd
+  - [ ] SMBC
+  - [ ] existentialcomics
 - [ ] Wikipedia (MediaWiki API):
   - [ ] Fetch a low-ink textual summary of the front page (avoid large images)
   - [ ] Strip styles, sanitize HTML to plain text/limited markup
@@ -78,9 +88,9 @@ Data ingestion (Python):
 
 SILE rendering details:
 - [ ] Section titles with consistent typographic hierarchy
-- [ ] Bullet and code styles (monospace; JetBrains Mono)
-- [ ] Hyphenation and widows/orphans control
-- [ ] Sensible overflow handling (truncate/continue indicators)
+- [x] Bullet and code styles (monospace; JetBrains Mono)
+- [x] Hyphenation and widows/orphans control
+- [x] Sensible overflow handling (truncate/continue indicators)
 - [ ] Image/SVG scaling utilities (max width, preserve aspect ratio)
 - [ ] Keep section boxes on baseline grid (align glue to baseline)
 
@@ -94,10 +104,6 @@ Integration:
   - [x] Add helper to load a JSON file by path (kept in holden-report.sil) and expose to section classes
   - [ ] Render each section from its own JSON file
 - [ ] Insert SVG charts/images with proper scaling and low-ink palette
-
-Ops & polish:
-- [ ] .gitignore: data caches, output PDFs, local secrets
-- [ ] Fail fast when APIs fail
 
 Notes/decisions:
 - Low-color aesthetic: grayscale + one accent color
