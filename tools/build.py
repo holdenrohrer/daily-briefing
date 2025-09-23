@@ -153,18 +153,19 @@ def _build_placeholder_data() -> Dict[str, Any]:
     }
     return data
 
-def _write_per_section_jsons(verbose: bool = False, cutoff_iso: str | None = None, official: bool = False) -> None:
+def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None = None, official: bool = False) -> None:
     """
     Write per-section JSON files under data/.
-    If cutoff_iso is provided, filter time-based sections (e.g., RSS) to entries
-    published at or after the cutoff. When 'official' is True, annotate metadata.
+    Time-based filtering (e.g., RSS) is handled inside tools/rss.py; pass cutoff_dt
+    to limit items published at or after that moment. When 'official' is True,
+    rss metadata will be annotated accordingly.
     """
     # RSS
     rss_feeds = [
         "https://feeds.arstechnica.com/arstechnica/index",
         "https://pluralistic.net/feed/",
     ]
-    rss_data = rss.fetch_rss(rss_feeds)
+    rss_data = rss.fetch_rss(rss_feeds, since=cutoff_dt, official=official)
     rss_json = {
         "title": "RSS Highlights",
     }
@@ -173,37 +174,7 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_iso: str | None = Non
     else:
         rss_json["items"] = rss_data
 
-    # Optionally filter RSS items by cutoff time
-    if cutoff_iso:
-        cutoff_dt = _parse_iso(cutoff_iso)
-        if cutoff_dt:
-            items = rss_json.get("items") or []
-            if isinstance(items, list):
-                filtered_items: list[dict] = []
-                for it in items:
-                    pub_dt = _parse_iso(str(it.get("published") or ""))
-                    if pub_dt and pub_dt >= cutoff_dt:
-                        filtered_items.append(it)
-                rss_json["items"] = filtered_items
-
-            # Rebuild groups to reflect filtered items (using provided source_slug)
-            groups: Dict[str, Any] = {}
-            for it in rss_json.get("items", []):
-                src = str(it.get("source") or "")
-                sslug = str(it.get("source_slug") or "")
-                if not sslug:
-                    # Fallback if missing, keep simple to avoid duplicating slug logic
-                    sslug = (src.lower().replace(" ", "-") or "source")
-                grp = groups.setdefault(sslug, {"source": src or "", "source_slug": sslug, "items": []})
-                grp["items"].append(it)
-            rss_json["groups"] = groups
-
-            # Annotate meta
-            meta = dict(rss_json.get("meta") or {})
-            meta["cutoff_iso"] = cutoff_iso
-            meta["official"] = bool(official)
-            meta["sources"] = len(rss_json.get("groups", {}))
-            rss_json["meta"] = meta
+    # Note: time-based filtering is performed in tools/rss.py (since=cutoff_dt)
 
     _write_json(Path("data/rss.json"), rss_json)
     if verbose:
@@ -381,10 +352,12 @@ def main(argv: list[str] | None = None) -> int:
     now_dt = datetime.now(timezone.utc)
     last_official_dt = _read_last_official()
     default_cutoff_dt = now_dt - timedelta(hours=48)
-    cutoff_dt = max(last_official_dt, default_cutoff_dt) # whichever is more recent
-    cutoff_iso = cutoff_dt.isoformat()
+    if last_official_dt and last_official_dt > default_cutoff_dt:
+        cutoff_dt = last_official_dt
+    else:
+        cutoff_dt = default_cutoff_dt
 
-    _write_per_section_jsons(verbose=bool(args.verbose), cutoff_iso=cutoff_iso, official=bool(args.official))
+    _write_per_section_jsons(verbose=bool(args.verbose), cutoff_dt=cutoff_dt, official=bool(args.official))
 
     # If this is an official build, persist the timestamp
     if args.official:

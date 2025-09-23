@@ -42,6 +42,21 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _parse_iso(ts: str) -> datetime | None:
+    if not ts:
+        return None
+    try:
+        s = ts.strip()
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
 def _safe_iso(date_str: str) -> str:
     if not date_str:
         return _iso_now()
@@ -75,6 +90,8 @@ def fetch_rss(
     per_feed_limit: int = 5,
     total_limit: int = 10,
     ttl_s: int | None = None,
+    since: datetime | None = None,
+    official: bool = False,
 ) -> Dict[str, Any]:
     """
     Fetch and normalize RSS/Atom feeds into a structure:
@@ -92,9 +109,11 @@ def fetch_rss(
     Uses a simple file cache under data/.cache/rss with TTL to avoid repeated network calls.
 
     Notes:
-    - Uses 'feedparser' to parse feeds; falls back to a minimal XML parser if needed.
+    - Uses 'feedparser' to parse feeds.
     - If 'feeds' is None or empty, defaults are taken from $RSS_FEEDS (comma-separated)
       or a built-in set of popular feeds.
+    - If 'since' is provided, only include items with published >= since (UTC).
+      The response meta will include 'cutoff_iso' and 'official'.
     """
     ttl = int(ttl_s if ttl_s is not None else int(os.getenv("RSS_TTL", "1800")))
     feeds = feeds or _default_feeds()
@@ -199,6 +218,17 @@ def fetch_rss(
                         "summary": str(e),
                     }
                 )
+        # Apply 'since' filtering and enforce per-feed limit after filtering
+        if since is not None:
+            filtered_items: List[Dict[str, Any]] = []
+            for it in items:
+                pub_dt = _parse_iso(str(it.get("published") or ""))
+                if pub_dt is not None and pub_dt >= since:
+                    filtered_items.append(it)
+            items = filtered_items
+        if per_feed_limit and per_feed_limit > 0:
+            items = items[:per_feed_limit]
+
         all_items.extend(items)
 
     if total_limit and total_limit > 0:
@@ -213,13 +243,19 @@ def fetch_rss(
         grp = groups.setdefault(sslug, {"source": src or host, "source_slug": sslug, "items": []})
         grp["items"].append(it)
 
+    meta: Dict[str, Any] = {
+        "cache_hits": cache_hits,
+        "cache_misses": cache_misses,
+        "ttl_s": ttl,
+        "sources": len(groups),
+    }
+    if since is not None:
+        meta["cutoff_iso"] = since.isoformat()
+    if official:
+        meta["official"] = True
+
     return {
         "items": all_items,
         "groups": groups,
-        "meta": {
-            "cache_hits": cache_hits,
-            "cache_misses": cache_misses,
-            "ttl_s": ttl,
-            "sources": len(groups),
-        },
+        "meta": meta,
     }
