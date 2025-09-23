@@ -7,7 +7,7 @@
 \use[module=packages.color]
 \use[module=packages.lists]
 \use[module=packages.rules]
-\use[module=packages.framebox]
+% \use[module=packages.framebox] (disabled; using fallback sectionbox)
 \set[parameter=document.baselineskip, value=0pt]
 \set[parameter=document.parindent, value=0pt]
 \set[parameter=current.parindent, value=0pt]
@@ -37,10 +37,14 @@
   \skip[height=.25em]
 }
 
-% Simple section box wrapper
+% Simple section box wrapper (fallback without framebox package)
 \define[command=sectionbox]{
   \skip[height=0.35em]
-  \Gold{\framebox[padding=0.4em, border=0.6pt]{\process}}
+  \Gold{\hrule[height=0.6pt]}
+  \skip[height=0.4em]
+  \Ink{\process}
+  \skip[height=0.4em]
+  \Gold{\hrule[height=0.6pt]}
   \skip[height=0.35em]
   \break
 }

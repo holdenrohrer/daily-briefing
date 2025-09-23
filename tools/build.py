@@ -194,7 +194,7 @@ def _run_sile(sile_main: Path, output_pdf: Path, data_json: Path, debug_boxes: b
     env["REPORT_DATA_JSON"] = str(data_json.resolve())
     _ensure_dir(output_pdf.parent)
     if_debug_boxes = []
-    cmd = ["sile", *if_debug_boxes, "-o", str(output_pdf), '--', str(sile_main)]
+    cmd = ["sile", "--luarocks-tree", "sile/lua_modules", *if_debug_boxes, "-o", str(output_pdf), '--', str(sile_main)]
     if verbose:
         print(f"[build] Running: {' '.join(cmd)}")
     try:
