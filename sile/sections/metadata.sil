@@ -2,6 +2,70 @@
 \define[command=metadatasection]{
   \font[weight=200,size=9pt]{
     \novbreak
-    \include[src=data/metadata.sil]
+    \script{
+      local jsonlib
+      pcall(function() jsonlib = require("dkjson") end)
+      if not jsonlib then pcall(function() jsonlib = require("cjson") end) end
+
+      local function readfile(path)
+        local f = io.open(path, "rb")
+        if not f then return nil end
+        local s = f:read("*a")
+        f:close()
+        return s
+      end
+
+      local function typesetLine(s)
+        SILE.typesetter:typeset(s)
+        SILE.call("par")
+      end
+
+      local function decode_json(s)
+        if not s or not jsonlib then return nil end
+        if jsonlib.decode then
+          local ok, data = pcall(jsonlib.decode, s)
+          if ok then return data end
+          return nil
+        elseif jsonlib.decode_json then
+          local ok, data = pcall(jsonlib.decode_json, s)
+          if ok then return data end
+          return nil
+        end
+        return nil
+      end
+
+      local content = readfile("data/metadata.json")
+      local data = decode_json(content)
+
+      if type(data) == "table" then
+        typesetLine("Metadata")
+        if data.created_iso then typesetLine("Created: " .. tostring(data.created_iso)) end
+        if data.cutoff_iso then typesetLine("Cutoff: " .. tostring(data.cutoff_iso)) end
+        typesetLine("Official build: " .. (data.official and "Yes" or "No"))
+        if data.git_rev then typesetLine("Git rev: " .. tostring(data.git_rev)) end
+        if data.python_version then
+          local pyver = tostring(data.python_version)
+          local firstline = pyver:match("([^\n\r]+)") or pyver
+          typesetLine("Python: " .. firstline)
+        end
+        local sections = data.sections or {}
+        local function countItems(key, label)
+          local sec = sections[key]
+          if type(sec) == "table" and type(sec.items) == "number" then
+            typesetLine(label .. " items: " .. tostring(sec.items))
+          end
+        end
+        countItems("rss","RSS")
+        countItems("youtube","YouTube")
+        countItems("facebook","Facebook")
+        countItems("caldav","CALDAV")
+        local w = sections.weather
+        if type(w) == "table" and w.svg_path then
+          typesetLine("Weather SVG: " .. tostring(w.svg_path))
+        end
+      else
+        typesetLine("Metadata (not available)")
+      end
+    }
   }
 }
