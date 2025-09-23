@@ -4,8 +4,12 @@
 \define[command=weathersection]{
   \sectionbox{
     \sectiontitle{Weather}
-    \font[size=9pt]{Hourly temperature, humidity, and precipitation (next 24h).}
+    \font[size=9pt]{Hourly temperature, humidity, and precipitation (next 24h), each on its own chart.}
     \par
-    \svg[src=assets/charts/weather.svg, width=100%lw]
+    \svg[src=assets/charts/weather_temp.svg, width=100%lw]
+    \par
+    \svg[src=assets/charts/weather_humidity.svg, width=100%lw]
+    \par
+    \svg[src=assets/charts/weather_precip.svg, width=100%lw]
   }
 }

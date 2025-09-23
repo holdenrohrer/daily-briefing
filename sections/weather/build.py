@@ -217,10 +217,15 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         color: str,
         ylim: tuple[float, float] | None = None,
     ) -> None:
-        matplotlib.style.use("ggplot")
         fig = Figure(figsize=(6.4, 2.2), dpi=100)
         FigureCanvasSVG(fig)
         ax = fig.add_subplot(1, 1, 1)
+        # ggplot-like styling without relying on matplotlib.style
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("#EBEBEB")
+        for spine in ax.spines.values():
+            spine.set_color("#CCCCCC")
+        ax.grid(True, which="major", axis="both", color="white", linewidth=1)
 
         # Parse ISO times like "YYYY-MM-DDTHH:MM" (possibly with 'Z')
         dts: List[datetime] = []
