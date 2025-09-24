@@ -386,16 +386,38 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
             if ymin == ymax:
                 ymin -= 0.5
                 ymax += 0.5
-            # Snap temperature axis to integer ticks and force integer-only markings
+            # Snap temperature axis to "nice" rounded steps (e.g., 22.5 -> 23) and force integer-like ticks
             import math
-            y0 = math.floor(ymin)
-            y1 = math.ceil(ymax)
-            if y1 == y0:
-                y1 = y0 + 1
+            # Round bounds to nearest 0.5 to keep a small headroom, then step size = 1 rounded up if fractional
+            y0_raw = ymin
+            y1_raw = ymax
+            # Provide a minimal padding
+            pad = 0.1
+            y0 = math.floor((y0_raw - pad) * 2) / 2.0
+            y1 = math.ceil((y1_raw + pad) * 2) / 2.0
+            if y1 <= y0:
+                y1 = y0 + 1.0
             ax.set_ylim(y0, y1)
             try:
                 import matplotlib.ticker as mticker
-                ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True, steps=[1]))
+                class RoundUpIntegerLocator(mticker.MultipleLocator):
+                    # Force ticks at integer values by using step=1 and relying on axis limits,
+                    # but round tick labels so values like 22.5 display as 23.
+                    def __init__(self):
+                        super().__init__(base=1.0)
+                    def tick_values(self, vmin, vmax):
+                        # Ensure we generate ticks at integer positions covering the range
+                        lo = math.floor(vmin)
+                        hi = math.ceil(vmax)
+                        return np.arange(lo, hi + 1, 1.0)
+                ax.yaxis.set_major_locator(RoundUpIntegerLocator())
+                # Custom formatter: round halves up to next integer (22.5 -> 23)
+                class HalfUpFormatter(mticker.Formatter):
+                    def __call__(self, x, pos=None):
+                        # Round half away from zero
+                        val = math.floor(x + 0.5)
+                        return f"{int(val)}"
+                ax.yaxis.set_major_formatter(HalfUpFormatter())
                 ax.yaxis.set_minor_locator(mticker.NullLocator())
             except Exception:
                 pass
