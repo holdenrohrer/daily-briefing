@@ -169,14 +169,14 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
 
     def _write_error_png(pth: Path, msg: str) -> None:
         # Minimal placeholder using matplotlib PNG backend for consistency
-        fig = Figure(figsize=(6.4, 2.2), dpi=100)
+        fig = Figure(figsize=(6.4, 2.0), dpi=600)
         FigureCanvasAgg(fig)
         ax = fig.add_subplot(1, 1, 1)
         ax.axis("off")
         ax.text(0.02, 0.80, "Weather unavailable", fontsize=12, fontfamily="monospace")
         ax.text(0.02, 0.62, msg, fontsize=10, fontfamily="monospace", wrap=True)
         ax.text(0.02, 0.06, f"Generated {now}", fontsize=8, fontfamily="monospace")
-        fig.savefig(pth, format="png")
+        fig.savefig(pth, format="png", dpi=600)
 
     if error_msg:
         # Write placeholders for all expected outputs (PNG)
@@ -217,7 +217,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         color: str,
         ylim: tuple[float, float] | None = None,
     ) -> None:
-        fig = Figure(figsize=(6.4, 2.2), dpi=100)
+        fig = Figure(figsize=(6.4, 2.0), dpi=600)
         FigureCanvasAgg(fig)
         ax = fig.add_subplot(1, 1, 1)
         # ggplot-like styling without relying on matplotlib.style
@@ -245,19 +245,17 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
 
         ax.plot(dts, values, color=color, linewidth=2)
 
-        ax.set_xlabel("Time (24h)")
-        ax.set_ylabel(ylabel)
         if ylim is not None:
             ax.set_ylim(*ylim)
 
         # Hourly ticks and labels
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H"))
 
         ax.grid(True, which="major", axis="both")
         fig.autofmt_xdate(rotation=0)
         fig.tight_layout(pad=0.5)
-        fig.savefig(pth, format="png")
+        fig.savefig(pth, format="png", dpi=600)
 
     # Render three charts (also write the temperature chart to a base PNG path)
     _plot_series_png(temp_path, times, temps, "Temperature (°C)", "#d62728")
