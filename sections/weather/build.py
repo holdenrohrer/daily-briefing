@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from tools import config
 
 
 @dataclass
@@ -64,6 +65,67 @@ def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
     ctx = ssl.create_default_context()
     with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
         return typing_cast_dict_any(json.loads(resp.read().decode("utf-8")))
+
+
+def _reverse_geocode_name(lat: float, lon: float) -> str | None:
+    """
+    Reverse geocode lat/lon to a human-readable place name.
+    Uses Open-Meteo Geocoding API (no key required).
+    Returns strings like "Palo Alto, CA" or "Paris, FR".
+    """
+    url = (
+        "https://geocoding-api.open-meteo.com/v1/reverse?"
+        + urllib.parse.urlencode(
+            {
+                "latitude": f"{lat:.5f}",
+                "longitude": f"{lon:.5f}",
+                "language": "en",
+                "format": "json",
+            }
+        )
+    )
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "holden-report/0.1 (+https://example.invalid)",
+            "Accept": "application/json",
+        },
+    )
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+            obj = typing_cast_dict_any(json.loads(resp.read().decode("utf-8")))
+    except Exception:
+        return None
+    results = obj.get("results") or []
+    if not results:
+        return None
+    r = results[0]
+    name = (r.get("name") or "").strip()
+    admin1 = (r.get("admin1") or "").strip()
+    country_code = (r.get("country_code") or "").strip()
+    # Map US state names to postal abbreviations
+    us_state_abbrev = {
+        "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+        "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+        "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+        "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+        "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
+        "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH",
+        "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY", "North Carolina": "NC",
+        "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA",
+        "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD", "Tennessee": "TN",
+        "Texas": "TX", "Utah": "UT", "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
+        "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY", "District of Columbia": "DC",
+    }
+    local2 = None
+    if country_code == "US" and admin1:
+        local2 = us_state_abbrev.get(admin1, admin1)
+    else:
+        local2 = country_code or admin1
+    if name and local2:
+        return f"{name}, {local2}"
+    return name or local2
 
 
 def typing_cast_dict_any(x: Any) -> Dict[str, Any]:
@@ -151,11 +213,21 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     base = Path(path)
     base.parent.mkdir(parents=True, exist_ok=True)
 
-    lat = _env_float("WEATHER_LAT", 37.7749)
-    lon = _env_float("WEATHER_LON", -122.4194)
+    lat = _env_float("WEATHER_LAT", config.LAT)
+    lon = _env_float("WEATHER_LON", config.LON)
 
     error_msg = None
     points: List[HourPoint] = []
+
+    # Resolve a human-friendly location name for title
+    location_name = None
+    try:
+        location_name = _reverse_geocode_name(lat, lon)
+    except Exception:
+        location_name = None
+    if not location_name:
+        location_name = f"{lat:.4f}, {lon:.4f}"
+
     try:
         payload = _fetch_open_meteo(lat, lon)
         points = _prepare_points(payload)
@@ -186,7 +258,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         for pth in (base_png, temp_path, hum_path, prec_path):
             _write_error_png(pth, error_msg)
         return {
-            "title": "Weather",
+            "title": f"Weather in {location_name}",
             "svg_path": str(base_png),
             "svg_paths": {
                 "temperature": str(temp_path),
@@ -330,7 +402,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         for hp in points
     ]
     return {
-        "title": "Weather",
+        "title": f"Weather in {location_name}",
         "svg_path": str(base_png),
         "svg_paths": {
             "temperature": str(temp_path),

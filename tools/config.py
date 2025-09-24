@@ -14,4 +14,9 @@ YOUTUBE_CHANNELS: List[str] = []
 
 FACEBOOK_PAGES: List[str] = []
 
+# Default geographic coordinates (used by weather section)
+# Example defaults: Palo Alto, CA
+LAT: float = 37.4419
+LON: float = -122.1430
+
 WEATHER_SVG_PATH: str | Path = "assets/charts/weather.svg"
