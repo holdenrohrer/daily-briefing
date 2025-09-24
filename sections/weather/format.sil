@@ -1,5 +1,5 @@
 % Weather section with inline PNG charts (MVP)
-\use[module=packages.graphics]
+\use[module=packages.image]
 
 \define[command=weathersection]{
   \sectionbox{
@@ -8,14 +8,14 @@
     \par
     \font[size=9pt]{Temperature (°C)}
     \par
-    \includegraphics[src=assets/charts/weather_temp.png, width=100%lw]
+    \img[src=assets/charts/weather_temp.png, width=100%lw]
     \par
     \font[size=9pt]{Humidity (\%)}
     \par
-    \includegraphics[src=assets/charts/weather_humidity.png, width=100%lw]
+    \img[src=assets/charts/weather_humidity.png, width=100%lw]
     \par
     \font[size=9pt]{Precipitation chance (\%)}
     \par
-    \includegraphics[src=assets/charts/weather_precip.png, width=100%lw]
+    \img[src=assets/charts/weather_precip.png, width=100%lw]
   }
 }
