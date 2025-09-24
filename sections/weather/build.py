@@ -70,24 +70,34 @@ def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
 def _reverse_geocode_name(lat: float, lon: float) -> str | None:
     """
     Reverse geocode lat/lon to a human-readable place name.
-    Uses Open-Meteo Geocoding API (no key required).
-    Returns strings like "Palo Alto, CA" or "Paris, FR".
+
+    Recommended APIs (choose one; first is free, no key required):
+    - Nominatim / OpenStreetMap reverse geocoding (free; requires a descriptive User-Agent and rate limiting):
+      https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={lon}
+      Returns fields like 'name', 'display_name', and 'address' with 'city/town/village',
+      'state', and 'country_code'.
+    - Google Maps Geocoding API (paid, API key): https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lon}&key=KEY
+    - Mapbox Geocoding API (paid, token): https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json?access_token=TOKEN
+
+    We implement Nominatim here to avoid requiring an API key.
+    Be a good citizen: set a proper User-Agent and keep request rate low.
     """
     url = (
-        "https://geocoding-api.open-meteo.com/v1/reverse?"
+        "https://nominatim.openstreetmap.org/reverse?"
         + urllib.parse.urlencode(
             {
-                "latitude": f"{lat:.5f}",
-                "longitude": f"{lon:.5f}",
-                "language": "en",
-                "format": "json",
+                "format": "jsonv2",
+                "lat": f"{lat:.5f}",
+                "lon": f"{lon:.5f}",
+                "accept-language": "en",
             }
         )
     )
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "holden-report/0.1 (+https://example.invalid)",
+            # Per Nominatim policy include a real UA with contact URL/email if possible.
+            "User-Agent": "holden-report/0.1 (+https://example.invalid/contact)",
             "Accept": "application/json",
         },
     )
@@ -97,14 +107,22 @@ def _reverse_geocode_name(lat: float, lon: float) -> str | None:
             obj = typing_cast_dict_any(json.loads(resp.read().decode("utf-8")))
     except Exception:
         return None
-    results = obj.get("results") or []
-    if not results:
-        return None
-    r = results[0]
-    name = (r.get("name") or "").strip()
-    admin1 = (r.get("admin1") or "").strip()
-    country_code = (r.get("country_code") or "").strip()
-    # Map US state names to postal abbreviations
+
+    addr = typing_cast_dict_any(obj.get("address") or {})
+    # Prefer city/town/village/hamlet; fall back to municipality or county
+    locality = (
+        addr.get("city")
+        or addr.get("town")
+        or addr.get("village")
+        or addr.get("hamlet")
+        or addr.get("municipality")
+        or addr.get("county")
+        or ""
+    ).strip()
+    state = (addr.get("state") or "").strip()
+    country_code = (addr.get("country_code") or "").strip().upper()
+
+    # Map US state names to postal abbreviations for brevity
     us_state_abbrev = {
         "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
         "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
@@ -118,14 +136,15 @@ def _reverse_geocode_name(lat: float, lon: float) -> str | None:
         "Texas": "TX", "Utah": "UT", "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
         "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY", "District of Columbia": "DC",
     }
-    local2 = None
-    if country_code == "US" and admin1:
-        local2 = us_state_abbrev.get(admin1, admin1)
+    region = None
+    if country_code == "US" and state:
+        region = us_state_abbrev.get(state, state)
     else:
-        local2 = country_code or admin1
-    if name and local2:
-        return f"{name}, {local2}"
-    return name or local2
+        region = country_code or state
+
+    if locality and region:
+        return f"{locality}, {region}"
+    return locality or region
 
 
 def typing_cast_dict_any(x: Any) -> Dict[str, Any]:
