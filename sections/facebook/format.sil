@@ -1,7 +1,73 @@
-% Facebook section class (placeholder)
+% Facebook section class
+% Renders data from data/facebook.json
 \define[command=facebooksection]{
   \sectionbox{
     \sectiontitle{Facebook}
-    Using data/facebook.json (placeholder)
+    \lua{
+      local json = SILE.scratch.load_json_file("data/facebook.json") or {}
+      local items = json.items or {}
+
+      local function text_or_empty(s)
+        if s == nil then return "" end
+        if type(s) ~= "string" then return "" end
+        return s
+      end
+
+      for i, item in ipairs(items) do
+        local page = text_or_empty(item.page)
+        local title = text_or_empty(item.title)
+        local body = text_or_empty(item.summary)
+        if body == "" then body = text_or_empty(item.text) end
+        local fallback = text_or_empty(item.fallback)
+        local when = text_or_empty(item.time_human)
+        if when == "" then when = text_or_empty(item.published) end
+        local link = text_or_empty(item.link)
+
+        -- When no title and no body, show the fallback string.
+        if title == "" and body == "" and fallback ~= "" then
+          body = fallback
+        end
+
+        -- Header: Page — time
+        local header = page
+        if when ~= "" then
+          if header ~= "" then header = header .. " — " .. when
+          else header = when end
+        end
+        if header ~= "" then
+          SILE.call("font", { size = "9pt", weight = 600 }, function()
+            SILE.typesetter:typeset(header)
+          end)
+          SILE.call("par")
+        end
+
+        -- Title (italic)
+        if title ~= "" then
+          SILE.call("font", { style = "italic" }, function()
+            SILE.typesetter:typeset(title)
+          end)
+          SILE.call("par")
+        end
+
+        -- Body (first 150 words already truncated on the producer side)
+        if body ~= "" then
+          SILE.typesetter:typeset(body)
+          SILE.call("par")
+        end
+
+        -- Link (small)
+        if link ~= "" then
+          SILE.call("font", { size = "8pt" }, function()
+            SILE.typesetter:typeset(link)
+          end)
+          SILE.call("par")
+        end
+
+        -- Spacing between posts
+        if i < #items then
+          SILE.call("vspace", { height = "0.5em" })
+        end
+      end
+    }
   }
 }
