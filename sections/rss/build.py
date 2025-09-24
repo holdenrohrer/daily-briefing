@@ -17,20 +17,6 @@ import feedparser  # type: ignore
 from tools.cache import read_cache, write_cache, make_key
 
 
-def _default_feeds() -> List[str]:
-    feeds_env = os.getenv("RSS_FEEDS", "")
-    if feeds_env.strip():
-        feeds = [s.strip() for s in feeds_env.split(",") if s.strip()]
-        if feeds:
-            return feeds
-    return [
-        "https://feeds.arstechnica.com/arstechnica/index",
-        "https://pluralistic.net/feed/",
-        "https://astralcodexten.substack.com/feed",
-        "https://thezvi.substack.com/feed",
-    ]
-
-
 def _slugify(s: str) -> str:
     s = unescape(s or "").lower().strip()
     s = re.sub(r"[^a-z0-9]+", "-", s)
@@ -116,7 +102,6 @@ def fetch_rss(
       The response meta will include 'cutoff_iso' and 'official'.
     """
     ttl = int(ttl_s if ttl_s is not None else int(os.getenv("RSS_TTL", "1800")))
-    feeds = feeds or _default_feeds()
 
     all_items: List[Dict[str, Any]] = []
     cache_hits = 0
