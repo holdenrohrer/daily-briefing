@@ -56,6 +56,18 @@ def _safe_iso(date_str: str) -> str:
         return _iso_now()
 
 
+def _truncate_words(s: str, limit: int) -> str:
+    """
+    Truncate a string to the first 'limit' words, collapsing whitespace.
+    """
+    if limit <= 0:
+        return s.strip()
+    words = re.findall(r"\S+", s)
+    if len(words) <= limit:
+        return " ".join(words)
+    return " ".join(words[:limit]) + "…"
+
+
 def _fetch_url(url: str, timeout: float = 10.0) -> bytes:
     req = Request(url, headers={"User-Agent": "daily-briefing/0.1 (+https://example.local)"})
     with urlopen(req, timeout=timeout) as resp:
@@ -124,6 +136,7 @@ def fetch_rss(
                 source_host = urlparse(url).netloc
                 source_title = (getattr(d, "feed", {}) or {}).get("title") or source_host
                 source_slug = _slugify(source_title or source_host)
+                is_pluralistic = "pluralistic.net" in source_host
                 entries = list(getattr(d, "entries", []) or [])
                 if entries:
                     for entry in entries:
@@ -141,23 +154,37 @@ def fetch_rss(
                             ).isoformat()
                         else:
                             published = _safe_iso(entry.get("published") or entry.get("updated") or "")
-                        summary = unescape(entry.get("summary") or entry.get("description") or "")
-                        parsed_items.append(
-                            {
-                                "title": title or "(untitled)",
-                                "link": link,
-                                "source": source_title,
-                                "source_slug": source_slug,
-                                "source_host": source_host,
-                                "slug": _slugify(title),
-                                "published": published,
-                                "summary": summary,
-                            }
-                        )
+                        summary_raw = unescape(entry.get("summary") or entry.get("description") or "")
+                        # Strip simple HTML tags and collapse whitespace before truncation
+                        summary_text = re.sub(r"<[^>]+>", " ", summary_raw)
+                        summary_text = re.sub(r"\s+", " ", summary_text).strip()
+                        summary = _truncate_words(summary_text, 100)
+
+                        content_html = None
+                        if is_pluralistic:
+                            try:
+                                content_list = entry.get("content") or []
+                                if isinstance(content_list, list) and content_list:
+                                    first = content_list[0] or {}
+                                    content_html = first.get("value") or None
+                            except Exception:
+                                content_html = None
+
+                        item = {
+                            "title": title or "(untitled)",
+                            "link": link,
+                            "source": source_title,
+                            "source_slug": source_slug,
+                            "source_host": source_host,
+                            "slug": _slugify(title),
+                            "published": published,
+                            "summary": summary,
+                        }
+                        if content_html:
+                            item["content"] = content_html
+                        parsed_items.append(item)
 
                 items = parsed_items
-                if per_feed_limit and per_feed_limit > 0:
-                    items = items[:per_feed_limit]
 
                 # Write successful fetch to cache
                 write_cache("rss", key, items, ttl)
@@ -211,13 +238,9 @@ def fetch_rss(
                 if pub_dt is not None and pub_dt >= since:
                     filtered_items.append(it)
             items = filtered_items
-        if per_feed_limit and per_feed_limit > 0:
-            items = items[:per_feed_limit]
 
         all_items.extend(items)
 
-    if total_limit and total_limit > 0:
-        all_items = all_items[:total_limit]
 
     # Group by source (non-breaking addition for consumers that only read "items")
     groups: Dict[str, Dict[str, Any]] = {}
