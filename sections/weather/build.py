@@ -386,7 +386,19 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
             if ymin == ymax:
                 ymin -= 0.5
                 ymax += 0.5
-            ax.set_ylim(ymin, ymax)
+            # Snap temperature axis to integer ticks and force integer-only markings
+            import math
+            y0 = math.floor(ymin)
+            y1 = math.ceil(ymax)
+            if y1 == y0:
+                y1 = y0 + 1
+            ax.set_ylim(y0, y1)
+            try:
+                import matplotlib.ticker as mticker
+                ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True, steps=[1]))
+                ax.yaxis.set_minor_locator(mticker.NullLocator())
+            except Exception:
+                pass
         else:
             # Simple colored line + same-color lighter fill
             ax.plot(dts, values, color=color, linewidth=2, zorder=2)
