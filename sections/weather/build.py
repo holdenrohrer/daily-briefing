@@ -7,7 +7,7 @@ import urllib.request
 import json
 import matplotlib.dates as mdates
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_svg import FigureCanvasSVG
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -133,7 +133,7 @@ def _polyline(points: List[Tuple[float, float]]) -> str:
 
 def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     """
-    Fetch hourly weather (temp C, humidity %, precip %), render three ggplot-like SVG charts
+    Fetch hourly weather (temp C, humidity %, precip %), render three ggplot-like PNG charts
     using matplotlib (one per series), and return metadata for JSON consumers.
 
     Behavior:
@@ -142,7 +142,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         temp (°C, autoscaled),
         humidity (%),
         precipitation probability (%).
-    - On failure, writes placeholder SVGs with an error message.
+    - On failure, writes placeholder PNGs with an error message.
     """
     now = datetime.now(timezone.utc).isoformat()
     base = Path(path)
@@ -162,28 +162,29 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         error_msg = f"{type(e).__name__}: {e}"
 
     # Derive output file names (relative to provided base path)
-    temp_path = base.with_name(base.stem + "_temp.svg")
-    hum_path = base.with_name(base.stem + "_humidity.svg")
-    prec_path = base.with_name(base.stem + "_precip.svg")
+    base_png = base.with_suffix(".png")
+    temp_path = base.with_name(base.stem + "_temp.png")
+    hum_path = base.with_name(base.stem + "_humidity.png")
+    prec_path = base.with_name(base.stem + "_precip.png")
 
-    def _write_error_svg(pth: Path, msg: str) -> None:
-        # Minimal placeholder using matplotlib SVG backend for consistency
+    def _write_error_png(pth: Path, msg: str) -> None:
+        # Minimal placeholder using matplotlib PNG backend for consistency
         fig = Figure(figsize=(6.4, 2.2), dpi=100)
-        FigureCanvasSVG(fig)
+        FigureCanvasAgg(fig)
         ax = fig.add_subplot(1, 1, 1)
         ax.axis("off")
         ax.text(0.02, 0.80, "Weather unavailable", fontsize=12, fontfamily="monospace")
         ax.text(0.02, 0.62, msg, fontsize=10, fontfamily="monospace", wrap=True)
         ax.text(0.02, 0.06, f"Generated {now}", fontsize=8, fontfamily="monospace")
-        fig.savefig(pth, format="svg")
+        fig.savefig(pth, format="png")
 
     if error_msg:
-        # Write placeholders for all expected outputs, including the legacy base path
-        for pth in (base, temp_path, hum_path, prec_path):
-            _write_error_svg(pth, error_msg)
+        # Write placeholders for all expected outputs (PNG)
+        for pth in (base_png, temp_path, hum_path, prec_path):
+            _write_error_png(pth, error_msg)
         return {
             "title": "Weather",
-            "svg_path": str(base),
+            "svg_path": str(base_png),
             "svg_paths": {
                 "temperature": str(temp_path),
                 "humidity": str(hum_path),
@@ -208,7 +209,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     hums = [hp.humidity_pct for hp in points]
     precs = [hp.precip_pct for hp in points]
 
-    def _plot_series_svg(
+    def _plot_series_png(
         pth: Path,
         series_times: List[str],
         values: List[float],
@@ -217,7 +218,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         ylim: tuple[float, float] | None = None,
     ) -> None:
         fig = Figure(figsize=(6.4, 2.2), dpi=100)
-        FigureCanvasSVG(fig)
+        FigureCanvasAgg(fig)
         ax = fig.add_subplot(1, 1, 1)
         # ggplot-like styling without relying on matplotlib.style
         fig.patch.set_facecolor("white")
@@ -256,13 +257,13 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         ax.grid(True, which="major", axis="both")
         fig.autofmt_xdate(rotation=0)
         fig.tight_layout(pad=0.5)
-        fig.savefig(pth, format="svg")
+        fig.savefig(pth, format="png")
 
-    # Render three charts (also write the temperature chart to the legacy base path)
-    _plot_series_svg(temp_path, times, temps, "Temperature (°C)", "#d62728")
-    _plot_series_svg(hum_path, times, hums, "Humidity (%)", "#1f77b4", ylim=(0, 100))
-    _plot_series_svg(prec_path, times, precs, "Precipitation chance (%)", "#2ca02c", ylim=(0, 100))
-    _plot_series_svg(base, times, temps, "Temperature (°C)", "#d62728")
+    # Render three charts (also write the temperature chart to a base PNG path)
+    _plot_series_png(temp_path, times, temps, "Temperature (°C)", "#d62728")
+    _plot_series_png(hum_path, times, hums, "Humidity (%)", "#1f77b4", ylim=(0, 100))
+    _plot_series_png(prec_path, times, precs, "Precipitation chance (%)", "#2ca02c", ylim=(0, 100))
+    _plot_series_png(base_png, times, temps, "Temperature (°C)", "#d62728")
 
     items = [
         {
@@ -275,7 +276,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     ]
     return {
         "title": "Weather",
-        "svg_path": str(base),
+        "svg_path": str(base_png),
         "svg_paths": {
             "temperature": str(temp_path),
             "humidity": str(hum_path),

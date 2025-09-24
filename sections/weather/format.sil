@@ -1,5 +1,5 @@
-% Weather section with inline SVG chart (MVP)
-\use[module=packages.svg]
+% Weather section with inline PNG charts (MVP)
+\use[module=packages.graphics]
 
 \define[command=weathersection]{
   \sectionbox{
@@ -8,14 +8,14 @@
     \par
     \font[size=9pt]{Temperature (°C)}
     \par
-    \svg[src=assets/charts/weather_temp.svg, width=100%lw]
+    \includegraphics[src=assets/charts/weather_temp.png, width=100%lw]
     \par
     \font[size=9pt]{Humidity (\%)}
     \par
-    \svg[src=assets/charts/weather_humidity.svg, width=100%lw]
+    \includegraphics[src=assets/charts/weather_humidity.png, width=100%lw]
     \par
     \font[size=9pt]{Precipitation chance (\%)}
     \par
-    \svg[src=assets/charts/weather_precip.svg, width=100%lw]
+    \includegraphics[src=assets/charts/weather_precip.png, width=100%lw]
   }
 }
