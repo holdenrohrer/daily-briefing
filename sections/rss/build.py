@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
+from html.parser import HTMLParser
 from typing import Any, Dict, List
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -66,6 +67,52 @@ def _truncate_words(s: str, limit: int) -> str:
     if len(words) <= limit:
         return " ".join(words)
     return " ".join(words[:limit]) + "…"
+
+
+class _PluralisticTocParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.in_toc_ul = False
+        self.capture_li = False
+        self.current: list[str] = []
+        self.items: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        t = tag.lower()
+        attrs_dict = {k.lower(): (v or "") for k, v in attrs}
+        cls_vals = " ".join(str(attrs_dict.get("class", ""))).strip().lower()
+        classes = set(cls_vals.split()) if cls_vals else set()
+        if t == "ul" and "toc" in classes:
+            self.in_toc_ul = True
+        elif self.in_toc_ul and t == "li":
+            if "xtoc" in classes:
+                self.capture_li = True
+                self.current = []
+
+    def handle_endtag(self, tag: str) -> None:
+        t = tag.lower()
+        if t == "ul" and self.in_toc_ul:
+            self.in_toc_ul = False
+        elif t == "li" and self.capture_li:
+            text = " ".join("".join(self.current).split())
+            if text:
+                self.items.append(text)
+            self.capture_li = False
+            self.current = []
+
+    def handle_data(self, data: str) -> None:
+        if self.capture_li and data:
+            self.current.append(data)
+
+def _extract_pluralistic_toc(html: str) -> List[str]:
+    """
+    Extract text from <ul class="toc"> <li class="xToc"> entries in pluralistic.net content.
+    Returns a list of strings with HTML tags stripped and whitespace collapsed.
+    """
+    parser = _PluralisticTocParser()
+    parser.feed(html or "")
+    parser.close()
+    return parser.items
 
 
 def _fetch_url(url: str, timeout: float = 10.0) -> bytes:
@@ -161,14 +208,18 @@ def fetch_rss(
                         summary = _truncate_words(summary_text, 100)
 
                         content_html = None
+                        toc_items: List[str] = []
                         if is_pluralistic:
                             try:
                                 content_list = entry.get("content") or []
                                 if isinstance(content_list, list) and content_list:
                                     first = content_list[0] or {}
                                     content_html = first.get("value") or None
+                                    if content_html:
+                                        toc_items = _extract_pluralistic_toc(content_html)
                             except Exception:
                                 content_html = None
+                                toc_items = []
 
                         item = {
                             "title": title or "(untitled)",
@@ -182,6 +233,8 @@ def fetch_rss(
                         }
                         if content_html:
                             item["content"] = content_html
+                        if toc_items:
+                            item["toc"] = toc_items
                         parsed_items.append(item)
 
                 items = parsed_items
