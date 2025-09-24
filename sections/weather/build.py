@@ -8,6 +8,9 @@ import json
 import matplotlib.dates as mdates
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.collections import LineCollection
+from matplotlib import cm, colors as mcolors
+import numpy as np
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -216,6 +219,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         ylabel: str,
         color: str,
         ylim: tuple[float, float] | None = None,
+        gradient: bool = False,
     ) -> None:
         fig = Figure(figsize=(6.4, 2.0), dpi=600)
         FigureCanvasAgg(fig)
@@ -243,10 +247,63 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
                 dt = datetime.now()
             dts.append(dt)
 
-        ax.plot(dts, values, color=color, linewidth=2)
-
+        # Apply y-limits if requested (e.g., for % series)
         if ylim is not None:
             ax.set_ylim(*ylim)
+
+        # Determine baseline for fill (0 for % series, min(values) otherwise)
+        base = ylim[0] if ylim is not None else (min(values) if values else 0.0)
+
+        if gradient:
+            # Temperature: color by value (blue @<=10 → red @>=26)
+            xs = mdates.date2num(dts)
+            y = np.asarray(values, dtype=float)
+            if y.size == 0:
+                return
+            # Build colored line segments
+            points = np.array([xs, y]).T.reshape(-1, 1, 2)
+            segments = np.concatenate([points[:-1], points[1:]], axis=1)
+            norm = mcolors.Normalize(vmin=10.0, vmax=26.0)
+            cmap = cm.get_cmap("coolwarm")
+            lc = LineCollection(segments, cmap=cmap, norm=norm, linewidth=2, zorder=2)
+            mids = (y[:-1] + y[1:]) / 2.0
+            lc.set_array(mids)
+            ax.add_collection(lc)
+
+            # Gradient under-fill: per-segment fill with lighter color
+            for i in range(len(xs) - 1):
+                midval = (y[i] + y[i + 1]) / 2.0
+                c = cmap(norm(midval))
+                ax.fill_between(
+                    [mdates.num2date(xs[i]), mdates.num2date(xs[i + 1])],
+                    [y[i], y[i + 1]],
+                    [base, base],
+                    facecolor=c,
+                    alpha=0.2,
+                    linewidth=0,
+                    zorder=1,
+                )
+
+            # Tight x bounds, no LR padding
+            ax.set_xlim(mdates.num2date(xs.min()), mdates.num2date(xs.max()))
+            ax.set_xmargin(0)
+            ax.margins(x=0)
+
+            # Ensure reasonable y-bounds if not given
+            ymin = float(np.min(y))
+            ymax = float(np.max(y))
+            if ymin == ymax:
+                ymin -= 0.5
+                ymax += 0.5
+            ax.set_ylim(ymin, ymax)
+        else:
+            # Simple colored line + same-color lighter fill
+            ax.plot(dts, values, color=color, linewidth=2, zorder=2)
+            ax.fill_between(dts, values, base, facecolor=color, alpha=0.2, linewidth=0, zorder=1)
+            # Tight x bounds, no LR padding
+            ax.set_xlim(min(dts), max(dts))
+            ax.set_xmargin(0)
+            ax.margins(x=0)
 
         # Hourly ticks and labels
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
@@ -258,10 +315,10 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         fig.savefig(pth, format="png", dpi=600)
 
     # Render three charts (also write the temperature chart to a base PNG path)
-    _plot_series_png(temp_path, times, temps, "Temperature (°C)", "#d62728")
-    _plot_series_png(hum_path, times, hums, "Humidity (%)", "#1f77b4", ylim=(0, 100))
-    _plot_series_png(prec_path, times, precs, "Precipitation chance (%)", "#2ca02c", ylim=(0, 100))
-    _plot_series_png(base_png, times, temps, "Temperature (°C)", "#d62728")
+    _plot_series_png(temp_path, times, temps, "Temperature (°C)", "#d62728", gradient=True)
+    _plot_series_png(hum_path, times, hums, "Humidity (%)", "#000000", ylim=(0, 100))
+    _plot_series_png(prec_path, times, precs, "Precipitation chance (%)", "#6baed6", ylim=(0, 100))
+    _plot_series_png(base_png, times, temps, "Temperature (°C)", "#d62728", gradient=True)
 
     items = [
         {
