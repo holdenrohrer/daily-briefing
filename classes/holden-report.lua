@@ -2,6 +2,7 @@
 -- Inherit from plain, define frames, and render header/footer every page.
 
 local plain = require("classes.plain")
+dofile("classes/pagebuilder-patch.lua")
 
 local class = pl.class(plain)
 class._name = "holden-report"
