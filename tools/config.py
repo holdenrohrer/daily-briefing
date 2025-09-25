@@ -5,9 +5,12 @@ from typing import List
 
 # Centralized configuration for data producers
 
+
 RSS_FEEDS: List[str] = [
     "https://feeds.arstechnica.com/arstechnica/index",
     "https://pluralistic.net/feed/",
+    "https://astralcodexten.substack.com/feed",
+    "https://thezvi.substack.com/feed",
 ]
 
 YOUTUBE_CHANNELS: List[str] = []
@@ -15,8 +18,7 @@ YOUTUBE_CHANNELS: List[str] = []
 FACEBOOK_PAGES: List[str] = []
 
 # Default geographic coordinates (used by weather section)
-# Example defaults: Palo Alto, CA
-LAT: float = 37.4419
-LON: float = -122.1430
+LAT: float = 33.996805
+LON: float = -84.295903
 
 WEATHER_SVG_PATH: str | Path = "assets/charts/weather.svg"
