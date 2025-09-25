@@ -21,27 +21,82 @@
       SILE.typesetter:typeset("Cache: hits " .. hits .. ", misses " .. misses)
       SILE.call("par")
 
-      local items = data.items or data
-      if type(items) ~= "table" then
-        SILE.typesetter:typeset("Invalid RSS JSON schema.")
+      local groups = type(data.groups) == "table" and data.groups or {}
+      if type(groups) ~= "table" then
+        SILE.typesetter:typeset("Invalid RSS JSON schema (no groups).")
         return
       end
 
-      local limit = math.min(#items, 5)
-      SILE.call("itemize", {}, function()
-        for i = 1, limit do
-          local it = items[i] or {}
-          local title = tostring(it.title or "(untitled)")
-          local source = tostring(it.source or "")
-          SILE.call("item", {}, function()
-            local line = title
-            if source ~= "" then
-              line = line .. " — " .. source
-            end
-            SILE.typesetter:typeset(line)
-          end)
-        end
+      -- Build a sortable list of groups
+      local list = {}
+      for _, grp in pairs(groups) do table.insert(list, grp) end
+
+      local function blog_label(grp)
+        local src = string.lower(tostring(grp.source or ""))
+        local slug = string.lower(tostring(grp.source_slug or ""))
+        local host = ""
+        local items = type(grp.items) == "table" and grp.items or {}
+        if #items > 0 then host = string.lower(tostring(items[1].source_host or "")) end
+        if slug == "ars-technica" or src:find("ars technica", 1, true) or host:find("arstechnica", 1, true) then return "Ars Technica" end
+        if slug == "pluralistic" or src:find("pluralistic", 1, true) or host:find("pluralistic", 1, true) then return "Pluralistic" end
+        if slug == "astral-codex-ten" or src:find("astral codex ten", 1, true) or host:find("astralcodexten", 1, true) then return "ACX" end
+        if slug == "the-zvi" or src:find("zvi", 1, true) or host:find("thezvi", 1, true) or src:find("don't worry", 1, true) then return "The Zvi" end
+        return tostring(grp.source or "Blog")
+      end
+
+      local function blog_order_key(grp)
+        local lbl = blog_label(grp)
+        if lbl == "Ars Technica" then return 1 end
+        if lbl == "Pluralistic" then return 2 end
+        if lbl == "ACX" then return 3 end
+        if lbl == "The Zvi" then return 4 end
+        return 99
+      end
+
+      table.sort(list, function(a, b)
+        local ka, kb = blog_order_key(a), blog_order_key(b)
+        if ka ~= kb then return ka < kb end
+        local as, bs = string.lower(tostring(a.source or "")), string.lower(tostring(b.source or ""))
+        return as < bs
       end)
+
+      for _, grp in ipairs(list) do
+        local label = blog_label(grp)
+        SILE.call("font", { size = "12pt" }, function()
+          SILE.typesetter:typeset(label)
+        end)
+        SILE.call("par")
+
+        local items = type(grp.items) == "table" and grp.items or {}
+        for j = 1, #items do
+          local it = items[j] or {}
+          local atitle = tostring(it.title or "(untitled)")
+          SILE.call("font", { size = "10pt" }, function()
+            SILE.typesetter:typeset(atitle)
+          end)
+          SILE.call("par")
+
+          local subs = it.subtitles or {}
+          if type(subs) ~= "table" then subs = {} end
+          for k = 1, #subs do
+            local sub = tostring(subs[k] or "")
+            if sub ~= "" then
+              SILE.call("color", { color = "Subtle" }, function()
+                SILE.call("font", { size = "8pt" }, function()
+                  SILE.typesetter:typeset(sub)
+                end)
+              end)
+              SILE.call("par")
+            end
+          end
+
+          -- Separator between articles
+          SILE.call("par")
+        end
+
+        -- Separator between blogs
+        SILE.call("par")
+      end
     }
   }
 }

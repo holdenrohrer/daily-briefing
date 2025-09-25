@@ -69,6 +69,19 @@ def _truncate_words(s: str, limit: int) -> str:
     return " ".join(words[:limit]) + "…"
 
 
+def _format_published_for_subtitle(published_iso: str) -> str:
+    """
+    Format an ISO8601 timestamp into a friendly subtitle string.
+    Example: "Published 24 June 2027 3pm".
+    If parsing fails, uses current UTC time.
+    """
+    dt = _parse_iso(published_iso)
+    if dt is None:
+        dt = datetime.now(timezone.utc)
+    hour = dt.hour
+    hour12 = hour % 12 or 12
+    ampm = "am" if hour < 12 else "pm"
+    return f"Published {dt.day} {dt.strftime('%B')} {dt.year} {hour12}{ampm}"
 
 
 def _fetch_url(url: str, timeout: float = 10.0) -> bytes:
@@ -163,10 +176,21 @@ def fetch_rss(
                         summary_text = re.sub(r"\s+", " ", summary_text).strip()
                         summary = _truncate_words(summary_text, 100)
 
+                        # Build subtitles list:
+                        # - For pluralistic: use ToC items (if any)
+                        # - For others: use the truncated summary
+                        # In all cases, append a friendly published timestamp.
+                        published_note = _format_published_for_subtitle(published)
+                        subtitles: List[str] = []
                         content_html = None
                         toc_items: List[str] = []
                         if is_pluralistic:
                             content_html, toc_items = extract_content_and_toc(entry)
+                            subtitles = list(toc_items) if toc_items else []
+                        else:
+                            if summary:
+                                subtitles = [summary]
+                        subtitles.append(published_note)
 
                         item = {
                             "title": title or "(untitled)",
@@ -177,6 +201,7 @@ def fetch_rss(
                             "slug": _slugify(title),
                             "published": published,
                             "summary": summary,
+                            "subtitles": subtitles,
                         }
                         if content_html:
                             item["content"] = content_html
