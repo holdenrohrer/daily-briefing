@@ -12,7 +12,6 @@
 % Running header/footer handled by holden-report.sil (custom plain-class patch)
 
 
-% Placeholder sections removed to avoid overfull frames; real sections follow
 % Per-section placeholders (reading individual JSON files)
 \rsssection
 \wikipediasection
@@ -21,7 +20,7 @@
 \facebooksection
 \caldavsection
 \weathersection
-
 \vfilll
 \metadatasection
+
 \end{document}

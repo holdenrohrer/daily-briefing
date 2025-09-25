@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, Callable
@@ -223,7 +224,7 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
 def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
     env = os.environ.copy()
     _ensure_dir(output_pdf.parent)
-    cmd = ["sile", "--luarocks-tree", "sile/lua_modules", "-o", str(output_pdf), '--', str(sile_main)]
+    cmd = ["sile", "-o", str(output_pdf), '--', str(sile_main)]
     if verbose:
         print(f"[build] Running: {' '.join(cmd)}")
     try:
@@ -240,6 +241,8 @@ def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
     stdout = proc.stdout or ""
     stderr = proc.stderr or ""
 
+    def _non_error_warn(s: str) -> bool:
+        return re.match("^! (Overfull|Underfull)", s)
     # Heuristic: Treat known SILE error patterns as failure even if exit code is 0
     def _looks_like_sile_error(s: str) -> bool:
         if not s:
@@ -247,10 +250,9 @@ def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
         return (
             "Error:" in s
             or "runtime error" in s
-            or "\n! " in s
-            or s.startswith("! ")
+            or re.match("^! ", s)
             or "Unknown command" in s
-        )
+        ) and not _non_error_warn(s)
 
     rc = proc.returncode
     if rc == 0 and (_looks_like_sile_error(stdout) or _looks_like_sile_error(stderr)):
@@ -260,7 +262,9 @@ def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
         )
         rc = 1
 
-    if rc == 0 and not verbose:
+    non_error_warn = _non_error_warn(stdout) or _non_error_warn(stderr)
+
+    if rc == 0 and not verbose and not non_error_warn:
         print(f"[build] OK: {output_pdf}")
     else:
         if stdout:
