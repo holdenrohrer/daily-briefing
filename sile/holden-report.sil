@@ -50,7 +50,7 @@
       local color = options.color or "#c9b458"
       local topGap = options.topgap or "0.35em"
       local midGap = options.midgap or "0.4em"
-      local bottomGap = options.bottomgap or "0.35em"
+      local bottomGap = options.bottomgap or "0pt plus 3in"
       local leftGap = options.leftgap or "-6pt"
       local rightGap = options.rightgap or "-6pt"
 
@@ -87,9 +87,8 @@
         goldOutsetHrule()
         SILE.call("skip", { height = midGap })
         SILE.process(content)
-        SILE.call("skip", { height = midGap })
+        SILE.call("par")
         goldOutsetHrule()
-        SILE.call("vfill")
       end
 
       ts:liner("sectionbox", innerContent, function (self, typesetter, line)
@@ -123,7 +122,10 @@
         self:outputContent(typesetter, line)
       end)
 
-      SILE.call("skip", { height = bottomGap })
+      local bg = SU.cast("length", bottomGap)
+      SILE.call("skip", { height = bg })
+      SILE.call("penalty", { penalty = -500 })
+      SILE.call("skip", { height = -bg })
     end)
   end
 }
