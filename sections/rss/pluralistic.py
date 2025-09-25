@@ -3,10 +3,7 @@ from __future__ import annotations
 from typing import Any, List, Tuple
 from html.parser import HTMLParser
 
-try:
-    from bs4 import BeautifulSoup  # type: ignore
-except Exception:  # pragma: no cover
-    BeautifulSoup = None  # type: ignore
+from bs4 import BeautifulSoup  # type: ignore
 
 
 def is_pluralistic_host(host: str | None) -> bool:
@@ -18,23 +15,17 @@ def _get_entry_content_html(entry: dict[str, Any]) -> str | None:
     Try to extract the main HTML content from a feedparser entry.
     Prefer entry.content[0].value; fall back to summary_detail.value; else None.
     """
-    try:
-        content_list = entry.get("content") or []
-        if isinstance(content_list, list) and content_list:
-            first = content_list[0] or {}
-            val = first.get("value")
-            if isinstance(val, str) and val.strip():
-                return val
-    except Exception:
-        pass
-
-    try:
-        sd = entry.get("summary_detail") or {}
-        val = sd.get("value")
+    content_list = entry.get("content") or []
+    if isinstance(content_list, list) and content_list:
+        first = content_list[0] or {}
+        val = first.get("value")
         if isinstance(val, str) and val.strip():
             return val
-    except Exception:
-        pass
+
+    sd = entry.get("summary_detail") or {}
+    val = sd.get("value")
+    if isinstance(val, str) and val.strip():
+        return val
 
     return None
 
