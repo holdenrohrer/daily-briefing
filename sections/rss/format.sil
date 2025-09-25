@@ -15,12 +15,6 @@
         return
       end
 
-      local meta = type(data.meta) == "table" and data.meta or {}
-      local hits = tostring(meta.cache_hits or 0)
-      local misses = tostring(meta.cache_misses or 0)
-      SILE.typesetter:typeset("Cache: hits " .. hits .. ", misses " .. misses)
-      SILE.call("par")
-
       local groups = type(data.groups) == "table" and data.groups or {}
       if type(groups) ~= "table" then
         SILE.typesetter:typeset("Invalid RSS JSON schema (no groups).")
@@ -81,21 +75,28 @@
           for k = 1, #subs do
             local sub = tostring(subs[k] or "")
             if sub ~= "" then
-              SILE.call("color", { color = "Subtle" }, function()
-                SILE.call("font", { size = "8pt" }, function()
-                  SILE.typesetter:typeset(sub)
+              SILE.settings:temporarily(function ()
+                SILE.settings:set("document.lskip", "6pt")
+                SILE.settings:set("document.baselineskip", "9pt")
+                SILE.call("color", {color = "#666666" }, function()
+                  SILE.call("font", { size = "8pt" }, function()
+                    SILE.typesetter:typeset(sub)
+                  end)
                 end)
+                SILE.call("par")
               end)
               SILE.call("par")
             end
           end
 
           -- Separator between articles
-          SILE.call("par")
+          SILE.call("skip", { height = ".5em" })
+          SILE.call("penalty", { penalty = -50 })
         end
 
         -- Separator between blogs
-        SILE.call("par")
+        SILE.call("skip", { height = "1em" })
+        SILE.call("penalty", { penalty = -150 })
       end
     }
   }
