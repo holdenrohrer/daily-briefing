@@ -5,34 +5,12 @@
   \sectionbox{
     \sectiontitle{\lua{
       local title = "Weather"
-      local decode
-      do
-        local ok, json = pcall(require, "cjson")
-        if ok and json and json.decode then
-          decode = function(s) return json.decode(s) end
-        else
-          ok, json = pcall(require, "dkjson")
-          if ok and json and json.decode then
-            decode = function(s) return json.decode(s) end
-          end
-        end
-      end
-      local f = io.open("data/weather.json","r")
-      if f and decode then
-        local s = f:read("*a"); f:close()
-        local ok2, data = pcall(decode, s)
-        if ok2 and data and data.title then
-          SILE.typesetter:typeset(data.title)
-        else
-          SILE.typesetter:typeset(title)
-        end
-      else
-        if f then f:close() end
-        SILE.typesetter:typeset(title)
-      end
+      local data = SILE.scratch.load_json_file("data/weather.json")
+      SILE.typesetter:typeset(
+        (data and data.title)
+        or title
+      )
     }}
-    \font[size=9pt]{Hourly temperature, humidity, and precipitation (next 24h), each on its own chart.}
-    \par
     \font[size=9pt]{Temperature (°C)}
     \par
     \img[src=assets/charts/weather_temp.png, width=100%lw]
