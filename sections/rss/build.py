@@ -233,6 +233,7 @@ def fetch_rss(
                         }
                         if content_html:
                             item["content"] = content_html
+                        print(toc_items)
                         if toc_items:
                             item["toc"] = toc_items
                         parsed_items.append(item)
