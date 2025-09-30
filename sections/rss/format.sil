@@ -28,29 +28,30 @@
         local source = tostring(it.source or "Blog")
         if source ~= current_source then
           if current_source ~= nil then
-            SILE.call("par")
+            SILE.call("rssGroupSeparator")
           end
-          SILE.typesetter:typeset(source)
-          SILE.call("par")
+          SILE.call("rssGroupTitle", {}, function()
+            SILE.typesetter:typeset(source)
+          end)
           current_source = source
         end
 
         local atitle = tostring(it.title or "(untitled)")
-        SILE.typesetter:typeset(atitle)
-        SILE.call("par")
+        SILE.call("rssItemTitle", {}, function()
+          SILE.typesetter:typeset(atitle)
+        end)
 
         local subs = it.subtitles or {}
         if type(subs) ~= "table" then subs = {} end
         for k = 1, #subs do
           local sub = tostring(subs[k] or "")
           if sub ~= "" then
-            SILE.call("Subtle", {}, function()
+            SILE.call("rssSubtitle", {}, function()
               SILE.typesetter:typeset(sub)
             end)
-            SILE.call("par")
           end
         end
-        SILE.call("par")
+        SILE.call("rssItemSeparator")
       end
     }
   }

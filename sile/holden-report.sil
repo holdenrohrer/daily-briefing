@@ -52,3 +52,10 @@
     SILE.typesetter:typeset(tostring(folio))
   }
 }
+
+% RSS formatting schema (content/format separation)
+\define[command=rssGroupTitle]{\font[size=12pt]{\Ink{\process}}\par}
+\define[command=rssItemTitle]{\font[size=10pt]{\Ink{\process}}\par}
+\define[command=rssSubtitle]{\Subtle{\font[size=8pt]{\process}}\par}
+\define[command=rssItemSeparator]{\skip[height=.5em]\penalty[penalty=-50]}
+\define[command=rssGroupSeparator]{\skip[height=1em]\penalty[penalty=-150]}
