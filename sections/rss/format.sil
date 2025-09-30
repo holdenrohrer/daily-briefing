@@ -15,51 +15,41 @@
         return
       end
 
-      local groups = type(data.groups) == "table" and data.groups or {}
-      if type(groups) ~= "table" then
-        SILE.typesetter:typeset("Invalid RSS JSON schema (no groups).")
+      local items = type(data.items) == "table" and data.items or {}
+      if type(items) ~= "table" then
+        SILE.typesetter:typeset("Invalid RSS JSON schema (no items).")
         return
       end
 
-      -- Build a sortable list of groups
-      local list = {}
-      for _, grp in pairs(groups) do table.insert(list, grp) end
-
-      -- label normalization moved to build step; use grp.source as-is
-
-      -- ordering moved to build step; preserve input order
-
-      -- no sorting here; formatting layer preserves upstream order
-
-      for _, grp in ipairs(list) do
-        local label = tostring(grp.source or "Blog")
-        SILE.typesetter:typeset(label)
-        SILE.call("par")
-
-        local items = type(grp.items) == "table" and grp.items or {}
-        for j = 1, #items do
-          local it = items[j] or {}
-          local atitle = tostring(it.title or "(untitled)")
-          SILE.typesetter:typeset(atitle)
-          SILE.call("par")
-
-          local subs = it.subtitles or {}
-          if type(subs) ~= "table" then subs = {} end
-          for k = 1, #subs do
-            local sub = tostring(subs[k] or "")
-            if sub ~= "" then
-              SILE.call("Subtle", {}, function()
-                SILE.typesetter:typeset(sub)
-              end)
-              SILE.call("par")
-            end
+      -- Render items in supplied order, grouping by source without reordering
+      local current_source = nil
+      for idx = 1, #items do
+        local it = items[idx] or {}
+        local source = tostring(it.source or "Blog")
+        if source ~= current_source then
+          if current_source ~= nil then
+            SILE.call("par")
           end
-
-          -- Separator between articles
+          SILE.typesetter:typeset(source)
           SILE.call("par")
+          current_source = source
         end
 
-        -- Separator between blogs
+        local atitle = tostring(it.title or "(untitled)")
+        SILE.typesetter:typeset(atitle)
+        SILE.call("par")
+
+        local subs = it.subtitles or {}
+        if type(subs) ~= "table" then subs = {} end
+        for k = 1, #subs do
+          local sub = tostring(subs[k] or "")
+          if sub ~= "" then
+            SILE.call("Subtle", {}, function()
+              SILE.typesetter:typeset(sub)
+            end)
+            SILE.call("par")
+          end
+        end
         SILE.call("par")
       end
     }
