@@ -3,7 +3,7 @@
   \sectionbox{
     \sectiontitle{RSS Highlights}
     \lua{
-      local path = os.getenv("RSS_JSON") or "data/rss.json"
+      local path = "data/rss.json"
       local load = SILE.scratch.load_json_file
       if not load then
         SILE.typesetter:typeset("JSON helper not available; ensure \\loaddata ran.")
@@ -25,49 +25,22 @@
       local list = {}
       for _, grp in pairs(groups) do table.insert(list, grp) end
 
-      local function blog_label(grp)
-        local src = string.lower(tostring(grp.source or ""))
-        local slug = string.lower(tostring(grp.source_slug or ""))
-        local host = ""
-        local items = type(grp.items) == "table" and grp.items or {}
-        if #items > 0 then host = string.lower(tostring(items[1].source_host or "")) end
-        if slug == "ars-technica" or src:find("ars technica", 1, true) or host:find("arstechnica", 1, true) then return "Ars Technica" end
-        if slug == "pluralistic" or src:find("pluralistic", 1, true) or host:find("pluralistic", 1, true) then return "Pluralistic" end
-        if slug == "astral-codex-ten" or src:find("astral codex ten", 1, true) or host:find("astralcodexten", 1, true) then return "ACX" end
-        if slug == "the-zvi" or src:find("zvi", 1, true) or host:find("thezvi", 1, true) or src:find("don't worry", 1, true) then return "The Zvi" end
-        return tostring(grp.source or "Blog")
-      end
+      -- label normalization moved to build step; use grp.source as-is
 
-      local function blog_order_key(grp)
-        local lbl = blog_label(grp)
-        if lbl == "Ars Technica" then return 1 end
-        if lbl == "Pluralistic" then return 2 end
-        if lbl == "ACX" then return 3 end
-        if lbl == "The Zvi" then return 4 end
-        return 99
-      end
+      -- ordering moved to build step; preserve input order
 
-      table.sort(list, function(a, b)
-        local ka, kb = blog_order_key(a), blog_order_key(b)
-        if ka ~= kb then return ka < kb end
-        local as, bs = string.lower(tostring(a.source or "")), string.lower(tostring(b.source or ""))
-        return as < bs
-      end)
+      -- no sorting here; formatting layer preserves upstream order
 
       for _, grp in ipairs(list) do
-        local label = blog_label(grp)
-        SILE.call("font", { size = "12pt" }, function()
-          SILE.typesetter:typeset(label)
-        end)
+        local label = tostring(grp.source or "Blog")
+        SILE.typesetter:typeset(label)
         SILE.call("par")
 
         local items = type(grp.items) == "table" and grp.items or {}
         for j = 1, #items do
           local it = items[j] or {}
           local atitle = tostring(it.title or "(untitled)")
-          SILE.call("font", { size = "10pt" }, function()
-            SILE.typesetter:typeset(atitle)
-          end)
+          SILE.typesetter:typeset(atitle)
           SILE.call("par")
 
           local subs = it.subtitles or {}
@@ -75,28 +48,19 @@
           for k = 1, #subs do
             local sub = tostring(subs[k] or "")
             if sub ~= "" then
-              SILE.settings:temporarily(function ()
-                SILE.settings:set("document.lskip", "6pt")
-                SILE.settings:set("document.baselineskip", "9pt")
-                SILE.call("color", {color = "#666666" }, function()
-                  SILE.call("font", { size = "8pt" }, function()
-                    SILE.typesetter:typeset(sub)
-                  end)
-                end)
-                SILE.call("par")
+              SILE.call("Subtle", {}, function()
+                SILE.typesetter:typeset(sub)
               end)
               SILE.call("par")
             end
           end
 
           -- Separator between articles
-          SILE.call("skip", { height = ".5em" })
-          SILE.call("penalty", { penalty = -50 })
+          SILE.call("par")
         end
 
         -- Separator between blogs
-        SILE.call("skip", { height = "1em" })
-        SILE.call("penalty", { penalty = -150 })
+        SILE.call("par")
       end
     }
   }
