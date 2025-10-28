@@ -327,6 +327,56 @@ def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
     return rc
 
 
+def _prompt_yes_no(question: str) -> bool:
+    """
+    Prompt the user with a yes/no question on stdin.
+
+    Requirements:
+    - 'question' must be a non-empty string.
+
+    Returns True only for affirmative answers ('y'/'yes', case-insensitive).
+    Returns False on empty input or EOF.
+    """
+    assert isinstance(question, str) and question.strip(), "question must be a non-empty string"
+    try:
+        ans = input(question)
+    except EOFError:
+        return False
+    if not isinstance(ans, str):
+        return False
+    return ans.strip().lower() in ("y", "yes")
+
+
+def _invoke_lpr(printer: str, pdf_path: Path, verbose: bool = False) -> int:
+    """
+    Print the given PDF using the 'lpr' command.
+
+    Requirements:
+    - 'printer' must be a non-empty string.
+    - 'pdf_path' must point to an existing file.
+
+    Raises:
+    - AssertionError if preconditions are not met.
+    - RuntimeError if lpr exits non-zero.
+
+    Returns the lpr process return code on success.
+    """
+    assert isinstance(printer, str) and printer.strip(), "printer must be a non-empty string"
+    assert isinstance(pdf_path, Path), "pdf_path must be a Path"
+    assert pdf_path.is_file(), f"PDF does not exist: {pdf_path}"
+
+    cmd = ["lpr", "-P", printer, str(pdf_path)]
+    if verbose:
+        print(f"[build] Running: {' '.join(cmd)}")
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        stderr = (proc.stderr or "").strip()
+        raise RuntimeError(f"lpr failed (rc={proc.returncode}): {stderr}")
+    if verbose:
+        print(f"[build] Sent to printer '{printer}': {pdf_path}")
+    return proc.returncode
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Build data JSON and (optionally) render PDF via SILE."
@@ -431,7 +481,32 @@ def main(argv: list[str] | None = None) -> int:
         json.dump(metadata, f, indent=2, sort_keys=True, ensure_ascii=False)
 
     # Second SILE run with updated metadata
-    return _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
+    rc2 = _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
+    if rc2 != 0:
+        return rc2
+
+    # If this is an official build, decide whether to print
+    if args.official:
+        printer = config.PRINTER_NAME
+        threshold = float(config.PRINT_THRESHOLD_USD)
+        if "error" in cost_info:
+            print(
+                f"[build] Skipping print: cannot estimate cost: {cost_info.get('error')}",
+                file=sys.stderr,
+            )
+        else:
+            total_cost = float(cost_info.get("total_cost", 0.0))
+            try:
+                if total_cost < threshold:
+                    _invoke_lpr(printer, output_pdf, verbose=bool(args.verbose))
+                else:
+                    question = f"Cost is ${total_cost:.2f}. Still print? [y/N] "
+                    if _prompt_yes_no(question):
+                        _invoke_lpr(printer, output_pdf, verbose=bool(args.verbose))
+            except Exception as e:
+                print(f"[build] Printing failed: {e}", file=sys.stderr)
+
+    return 0
 
 
 if __name__ == "__main__":

@@ -56,3 +56,7 @@ EMAIL_ACCOUNTS: List[Dict[str, str]] = [
 # NOTE: Fill OPENROUTER_API_TOKEN with your actual token. Code asserts non-empty.
 OPENROUTER_API_TOKEN: str = "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"
 OPENROUTER_CREDITS_URL: str = "https://openrouter.ai/api/v1/credits"
+
+# Printing configuration
+PRINTER_NAME: str = "holdens_printer"
+PRINT_THRESHOLD_USD: float = 1.00
