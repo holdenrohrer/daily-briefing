@@ -1,5 +1,6 @@
 \begin[class=holden-report, papersize=letter]{document}
 \include[src=holden-report.sil]
+\include[src=utils.sil]
 \include[src=../sections/rss/format.sil]
 \include[src=../sections/wikipedia/format.sil]
 \include[src=../sections/api_spend/format.sil]

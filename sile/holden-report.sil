@@ -7,6 +7,7 @@
 \use[module=packages.color]
 \use[module=packages.lists]
 \use[module=packages.rules]
+\use[module=packages.image]
 \set[parameter=document.baselineskip, value=12pt]
 \set[parameter=document.parindent, value=0pt]
 \set[parameter=current.parindent, value=0pt]
@@ -30,7 +31,7 @@
 }
 
 \define[command=sectiontitle]{
-  \font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
+  \par\font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
   \par
   \skip[height=.25em]
 }

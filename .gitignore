@@ -3,8 +3,5 @@
 **/__pycache__
 
 output/*
+build/*
 data/*
-assets/charts/*
-!output/.gitkeep
-!data/.gitkeep
-!assets/charts/.gitkeep

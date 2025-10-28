@@ -20,6 +20,7 @@
           matplotlib
           pillow
           pyyaml
+          caldav
         ]);
         jbMonoTtf = pkgs.runCommand "jetbrains-mono-ttf-only" {} ''
           set -eu
@@ -38,6 +39,7 @@
             pkgs.jq
             pkgs.fontconfig
             jbMonoTtf
+            pkgs.ghostscript
           ];
           FONTCONFIG_FILE = fontsConf;
           shellHook = ''

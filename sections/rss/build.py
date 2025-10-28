@@ -3,19 +3,23 @@ from __future__ import annotations
 import calendar
 import os
 import re
+import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
+from itertools import groupby
+from pathlib import Path
 from typing import Any, Dict, List
-from .pluralistic import is_pluralistic_host, extract_content_and_toc
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 import feedparser  # type: ignore
 
-from tools.cache import read_cache, write_cache, make_key
+from tools import cache
+from tools.util import escape_sile
+from .pluralistic import is_pluralistic_host, extract_content_and_toc
 
 
 def _slugify(s: str) -> str:
@@ -136,13 +140,7 @@ def fetch_rss(
     cache_misses = 0
 
     for url in feeds:
-        key = make_key(url)
-        cached, _meta = read_cache("rss", key, ttl)
-        if cached is not None:
-            items = cached
-            cache_hits += 1
-        else:
-            cache_misses += 1
+        def fetch_and_parse_feed():
             items = []
             try:
                 raw = _fetch_url(url, timeout=10.0)
@@ -210,9 +208,6 @@ def fetch_rss(
                         parsed_items.append(item)
 
                 items = parsed_items
-
-                # Write successful fetch to cache
-                write_cache("rss", key, items, ttl)
             except (HTTPError, URLError) as e:
                 host = urlparse(url).netloc
                 items.append(
@@ -255,6 +250,9 @@ def fetch_rss(
                         "summary": str(e),
                     }
                 )
+            return items
+
+        items = cache.get(f"rss:{url}", fetch_and_parse_feed, ttl)
         # Apply 'since' filtering and enforce per-feed limit after filtering
         if since is not None:
             filtered_items: List[Dict[str, Any]] = []
@@ -293,3 +291,64 @@ def fetch_rss(
         "groups": groups,
         "meta": meta,
     }
+
+
+def generate_sil(
+    since: datetime | None = None,
+    official: bool = False,
+    **kwargs
+) -> str:
+    """
+    Generate SILE code directly for the RSS section.
+    Gets feeds from config.py, only needs build-time args.
+    """
+    from tools import config
+    data = fetch_rss(feeds=config.RSS_FEEDS, since=since, official=official)
+    items = data.get("items", [])
+    
+    def _render_item_group(source: str, group_items: List[Dict[str, Any]]) -> str:
+        """Render a group of items from the same source."""
+        lines = [f"    \\rssGroupTitle{{{escape_sile(source)}}}"]
+        
+        for item in group_items:
+            title = escape_sile(str(item.get("title", "(untitled)")))
+            lines.append(f"    \\rssItemTitle{{{title}}}")
+            
+            for subtitle in item.get("subtitles", []):
+                if subtitle:
+                    escaped_subtitle = escape_sile(str(subtitle))
+                    lines.append(f"    \\rssSubtitle{{{escaped_subtitle}}}")
+            
+            lines.append("    \\rssItemSeparator")
+        
+        return "\n".join(lines)
+    
+    # Group items by source while preserving order
+    grouped_items = groupby(items, key=lambda x: str(x.get("source", "Blog")))
+    
+    item_groups = [
+        _render_item_group(source, list(group_items)) 
+        for source, group_items in grouped_items
+    ]
+    
+    content = "\n    \\rssGroupSeparator\n".join(item_groups)
+    
+    return f"""\\define[command=rsssection]{{
+  \\sectionbox{{
+    \\sectiontitle{{RSS Highlights}}
+    {content}
+  }}
+}}"""
+
+
+if __name__ == "__main__":
+    """Generate build/rss.sil when run directly."""
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    from tools import config
+    
+    output_path = Path("build/rss.sil")
+    output_path.parent.mkdir(exist_ok=True)
+    
+    sil_content = generate_sil(feeds=config.RSS_FEEDS)
+    output_path.write_text(sil_content, encoding="utf-8")
+    print(f"Generated {output_path}")

@@ -28,48 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 os.chdir(PROJECT_ROOT)
 import importlib
 from types import ModuleType
-from tools import config
-
-def _resolve_getter(section: str, func_name: str, verbose: bool = False):
-    """
-    Resolve a section data-generator function.
-
-    Lookup order (attempts):
-      1. sections.<section>.build (preferred new layout)
-      2. tools.<section> (backwards compatibility)
-      3. useful aliases (e.g. wikipedia -> tools.wiki, api_spend -> tools.spend)
-      4. tools.<section-without-underscores>
-
-    Returns a callable; raises ImportError if none found.
-    """
-    candidates = [f"sections.{section}.build"]
-
-    # Common aliases for historically different module names
-    alias_map = {
-        "wikipedia": "wiki",
-        "api_spend": "spend",
-    }
-    if section in alias_map:
-        candidates.append(f"tools.{alias_map[section]}")
-        candidates.append(f"sections.{alias_map[section]}.build")
-
-    # Try a tools module with underscores removed (e.g., "api_spend" -> "apispend")
-    if "_" in section:
-        candidates.append(f"tools.{section.replace('_', '')}")
-
-    # Final fallback: try importing any of the candidates and look for the function
-    for mod_name in candidates:
-        try:
-            mod = importlib.import_module(mod_name)
-        except ModuleNotFoundError:
-            continue
-        func = getattr(mod, func_name, None)
-        if callable(func):
-            if verbose:
-                print(f"[build] Using {mod_name}.{func_name}")
-            return func
-
-    raise ImportError(f"No module provides {func_name} for section {section}; checked {candidates}")
+from tools import config, util
 
 
 def _iso_now() -> str:
@@ -86,31 +45,6 @@ def _write_json(path: Path, data: Dict[str, Any]) -> None:
         json.dump(data, fh, indent=2, sort_keys=True, ensure_ascii=False)
 
 
-def _official_state_path() -> Path:
-    return Path("data/.cache/official.json")
-
-
-def _read_last_official() -> datetime | None:
-    p = _official_state_path()
-    try:
-        with p.open("r", encoding="utf-8") as fh:
-            obj = json.load(fh)
-        ts = obj.get("last_official")
-        if not isinstance(ts, str) or not ts:
-            return None
-        dt = datetime.fromisoformat(ts)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
-    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
-        return None
-
-
-def _write_last_official(iso_ts: str) -> None:
-    p = _official_state_path()
-    _ensure_dir(p.parent)
-    with p.open("w", encoding="utf-8") as fh:
-        json.dump({"last_official": iso_ts}, fh, indent=2, sort_keys=True, ensure_ascii=False)
 
 
 def _parse_iso(ts: str | None) -> datetime | None:
@@ -125,13 +59,56 @@ def _parse_iso(ts: str | None) -> datetime | None:
         return None
 
 
+def _generate_main_sil() -> None:
+    """Generate build/main.sil based on config.SECTIONS"""
+    lines = [
+        "\\begin[class=holden-report, papersize=letter]{document}",
+        "\\include[src=../sile/holden-report.sil]",
+        "\\include[src=../sile/utils.sil]",
+        "",
+        "% Per-section includes (generated sections or legacy format.sil)",
+    ]
+    
+    for section in config.SECTIONS:
+        # Check if section has generated .sil file, otherwise use legacy format.sil
+        sil_path = Path(f"build/{section}.sil")
+        if sil_path.exists():
+            lines.append(f"\\include[src={section}.sil]")
+        else:
+            lines.append(f"\\include[src=../sections/{section}/format.sil]")
+    
+    lines.extend([
+        "",
+        "% Per-section commands",
+    ])
+    
+    for section in config.SECTIONS:
+        lines.append(f"\\{section}section")
+    
+    lines.extend([
+        "",
+        "\\end{document}",
+    ])
+    
+    main_sil_path = Path("build/main.sil")
+    main_sil_path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None = None, official: bool = False) -> None:
     """
-    Write per-section JSON files under data/.
-    Time-based filtering (e.g., RSS) is handled inside tools/rss.py; pass cutoff_dt
+    Write per-section JSON files under build/.
+    Time-based filtering (e.g., RSS) is handled inside sections; pass cutoff_dt
     to limit items published at or after that moment. When 'official' is True,
     rss metadata will be annotated accordingly.
     """
+    def _write_sil(file: str | Path, sil_content: str) -> None:
+        path = Path(file)
+        _ensure_dir(path.parent)
+        with path.open("w", encoding="utf-8") as fh:
+            fh.write(sil_content)
+        if verbose:
+            print(f"[build] Wrote {file}")
+
     def _fetch_json(file: str | Path, getter: Callable[..., Any], *args, **kwargs) -> Dict[str, Any]:
         data = getter(*args, **kwargs)
         if not isinstance(data, dict):
@@ -141,33 +118,42 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
             print(f"[build] Wrote {file}")
         return data
 
-    # Per-section getters (prefer sections/<name>/build.py; fall back to tools/<name>.py)
-    rss_getter = _resolve_getter("rss", "fetch_rss", verbose=bool(verbose))
-    rss_data = _fetch_json("data/rss.json", rss_getter, feeds=config.RSS_FEEDS, since=cutoff_dt, official=official)
-
-    wiki_getter = _resolve_getter("wikipedia", "fetch_front_page", verbose=bool(verbose))
-    wiki_data = _fetch_json("data/wikipedia.json", wiki_getter)
-
-    # API Spend
-    yesterday = datetime.now(timezone.utc).date().isoformat()
-    spend_getter = _resolve_getter("api_spend", "summarize_spend", verbose=bool(verbose))
-    spend_data = _fetch_json("data/api_spend.json", spend_getter, yesterday)
-
-    # YouTube
-    yt_getter = _resolve_getter("youtube", "fetch_videos", verbose=bool(verbose))
-    yt_data = _fetch_json("data/youtube.json", yt_getter, config.YOUTUBE_CHANNELS)
-
-    # Facebook
-    fb_getter = _resolve_getter("facebook", "fetch_posts", verbose=bool(verbose))
-    fb_data = _fetch_json("data/facebook.json", fb_getter, config.FACEBOOK_PAGES)
-
-    # CALDAV
-    cal_getter = _resolve_getter("caldav", "fetch_events", verbose=bool(verbose))
-    cal_data = _fetch_json("data/caldav.json", cal_getter, yesterday)
-
-    # Weather (ensure placeholder SVG exists)
-    weather_getter = _resolve_getter("weather", "build_daily_svg", verbose=bool(verbose))
-    weather_data = _fetch_json("data/weather.json", weather_getter, config.WEATHER_SVG_PATH)
+    # Get section data using dynamic approach based on config
+    section_data = {}
+    
+    # Build args that some sections might need (but most should get from config.py)
+    build_args = {
+        "since": cutoff_dt,  # Only for time-filtered sections like RSS
+        "official": official,  # Only for sections that care about official builds
+    }
+    
+    for section in config.SECTIONS:
+            
+        # Get generate_sil function directly
+        try:
+            if section == "metadata":
+                sil_generator = _generate_metadata_sil
+            else:
+                # Direct import of generate_sil from sections.{section}.build
+                module = importlib.import_module(f"sections.{section}.build")
+                sil_generator = getattr(module, "generate_sil")
+            # Most sections should get what they need from config.py
+            # Only pass build-specific args that can't be in config
+            sil_content = sil_generator(**build_args)
+            _write_sil(f"build/{section}.sil", sil_content)
+        except Exception as e:
+            if verbose:
+                print(f"[build] Failed to generate {section}: {e}")
+            section_data[section] = {"error": str(e)}
+    
+    # Extract individual section data for metadata
+    rss_data = section_data.get("rss", {})
+    wiki_data = section_data.get("wikipedia", {})
+    spend_data = section_data.get("api_spend", {})
+    yt_data = section_data.get("youtube", {})
+    fb_data = section_data.get("facebook", {})
+    cal_data = section_data.get("caldav", {})
+    weather_data = section_data.get("weather", {})
 
     # Metadata (for end-of-document display)
     def _git_rev() -> str | None:
@@ -184,6 +170,40 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
         except Exception:
             return None
 
+    # Generate metadata section dynamically based on config.SECTIONS
+    metadata_sections = {}
+    for section in config.SECTIONS[:-1]:  # Exclude metadata itself
+        if section == "rss":
+            metadata_sections[section] = {
+                "items": len(rss_data.get("items", [])) if isinstance(rss_data, dict) else 0,
+                "sources": (rss_data.get("meta", {}) or {}).get("sources") if isinstance(rss_data, dict) else None,
+            }
+        elif section == "wikipedia":
+            metadata_sections[section] = {
+                "updated": (wiki_data or {}).get("updated") if isinstance(wiki_data, dict) else None,
+            }
+        elif section == "api_spend":
+            metadata_sections[section] = {
+                "date": (spend_data or {}).get("date") if isinstance(spend_data, dict) else None,
+                "total_usd": (spend_data or {}).get("total_usd") if isinstance(spend_data, dict) else None,
+            }
+        elif section == "youtube":
+            metadata_sections[section] = {
+                "items": len(yt_data.get("items", [])) if isinstance(yt_data, dict) else 0,
+            }
+        elif section == "facebook":
+            metadata_sections[section] = {
+                "items": len(fb_data.get("items", [])) if isinstance(fb_data, dict) else 0,
+            }
+        elif section == "caldav":
+            metadata_sections[section] = {
+                "items": len(cal_data.get("items", [])) if isinstance(cal_data, dict) else 0,
+            }
+        elif section == "weather":
+            metadata_sections[section] = {
+                "svg_path": (weather_data or {}).get("svg_path") if isinstance(weather_data, dict) else None,
+            }
+
     metadata: Dict[str, Any] = {
         "title": "Metadata",
         "created_iso": _iso_now(),
@@ -191,34 +211,75 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
         "official": bool(official),
         "python_version": sys.version,
         "git_rev": _git_rev(),
-        "sections": {
-            "rss": {
-                "items": len(rss_data.get("items", [])) if isinstance(rss_data, dict) else 0,
-                "sources": (rss_data.get("meta", {}) or {}).get("sources") if isinstance(rss_data, dict) else None,
-            },
-            "wikipedia": {
-                "updated": (wiki_data or {}).get("updated") if isinstance(wiki_data, dict) else None,
-            },
-            "api_spend": {
-                "date": (spend_data or {}).get("date") if isinstance(spend_data, dict) else None,
-                "total_usd": (spend_data or {}).get("total_usd") if isinstance(spend_data, dict) else None,
-            },
-            "youtube": {
-                "items": len(yt_data.get("items", [])) if isinstance(yt_data, dict) else 0,
-            },
-            "facebook": {
-                "items": len(fb_data.get("items", [])) if isinstance(fb_data, dict) else 0,
-            },
-            "caldav": {
-                "items": len(cal_data.get("items", [])) if isinstance(cal_data, dict) else 0,
-            },
-            "weather": {
-                "svg_path": (weather_data or {}).get("svg_path") if isinstance(weather_data, dict) else None,
-            },
-        },
+        "sections": metadata_sections,
     }
-    _fetch_json("data/metadata.json", lambda: metadata)
+    _fetch_json("build/metadata.json", lambda: metadata)
 
+
+
+def _generate_metadata_sil(**kwargs) -> str:
+    """Generate SILE code directly for the metadata section."""
+    from tools.util import escape_sile
+    
+    # Read the metadata JSON that was already generated
+    with open("build/metadata.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    
+    content_lines = [
+        "  \\eject\\vfilll",
+        "  \\font[weight=200,size=6pt]{",
+        "    \\set[parameter=document.baselineskip, value=8pt]",
+        "    \\novbreak",
+        "    Metadata",
+        "    \\par",
+    ]
+    
+    if data.get("created_iso"):
+        content_lines.append(f"    Created: {escape_sile(str(data['created_iso']))}")
+        content_lines.append("    \\par")
+    if data.get("cutoff_iso"):
+        content_lines.append(f"    Cutoff: {escape_sile(str(data['cutoff_iso']))}")
+        content_lines.append("    \\par")
+    
+    content_lines.append(f"    Official build: {'Yes' if data.get('official') else 'No'}")
+    content_lines.append("    \\par")
+    
+    if data.get("git_rev"):
+        content_lines.append(f"    Git rev: {escape_sile(str(data['git_rev']))}")
+        content_lines.append("    \\par")
+    
+    if data.get("python_version"):
+        pyver = str(data["python_version"])
+        firstline = pyver.split('\n')[0] if '\n' in pyver else pyver
+        content_lines.append(f"    Python: {escape_sile(firstline)}")
+        content_lines.append("    \\par")
+    
+    sections = data.get("sections", {})
+    if sections.get("rss", {}).get("items"):
+        content_lines.append(f"    RSS items: {sections['rss']['items']}")
+        content_lines.append("    \\par")
+    if sections.get("youtube", {}).get("items"):
+        content_lines.append(f"    YouTube items: {sections['youtube']['items']}")
+        content_lines.append("    \\par")
+    if sections.get("facebook", {}).get("items"):
+        content_lines.append(f"    Facebook items: {sections['facebook']['items']}")
+        content_lines.append("    \\par")
+    if sections.get("caldav", {}).get("items"):
+        content_lines.append(f"    CALDAV items: {sections['caldav']['items']}")
+        content_lines.append("    \\par")
+    
+    if data.get("printing_cost"):
+        cost = data["printing_cost"]
+        if not cost.get("error"):
+            content_lines.append(f"    Printing Cost: ${cost.get('total_cost', 0):.2f}")
+            content_lines.append("    \\par")
+    
+    content_lines.append("  }")
+    content = "\n".join(content_lines)
+    
+    return f"""\\define[command=metadatasection]{{
+{content}
+}}"""
 
 
 def _run_sile(sile_main: Path, output_pdf: Path, verbose: bool = False) -> int:
@@ -317,28 +378,27 @@ def main(argv: list[str] | None = None) -> int:
 
     # Ensure basic project directories exist
     for d in (
-        Path("data"),
-        Path("data/.cache"),
-        Path("assets/charts"),
+        Path("build"),
+        Path("data/cache"),
+        Path("build/charts"),
         Path("output"),
     ):
         _ensure_dir(d)
 
-
-    # Determine cutoff for time-based sections: since last --official or 48h ago, whichever is later
-    now_dt = datetime.now(timezone.utc)
-    last_official_dt = _read_last_official()
-    default_cutoff_dt = now_dt - timedelta(hours=48)
-    if last_official_dt and last_official_dt > default_cutoff_dt:
-        cutoff_dt = last_official_dt
-    else:
-        cutoff_dt = default_cutoff_dt
+    # Determine cutoff for time-based sections using util function
+    cutoff_dt = util.get_official_cutoff_time()
 
     _write_per_section_jsons(verbose=bool(args.verbose), cutoff_dt=cutoff_dt, official=bool(args.official))
+    
+    # Generate build/main.sil based on available sections
+    _generate_main_sil()
+    if args.verbose:
+        print("[build] Generated build/main.sil")
 
     # If this is an official build, persist the timestamp
     if args.official:
-        _write_last_official(now_dt.isoformat())
+        now_dt = datetime.now(timezone.utc)
+        util.record_official_timestamp(now_dt)
         if args.verbose:
             print(f"[build] Recorded official timestamp: {now_dt.isoformat()}")
 
@@ -354,11 +414,33 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    return _run_sile(
-        sile_main=sile_main,
-        output_pdf=output_pdf,
-        verbose=bool(args.verbose),
-    )
+    # Use build/main.sil instead of the provided sile_main
+    build_main_sil = Path("build/main.sil")
+    
+    # First SILE run  
+    sile_result = _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
+    if sile_result != 0:
+        return sile_result
+    
+    # Calculate PDF printing cost and update metadata
+    cost_info = util.calculate_pdf_printing_cost(output_pdf)
+    if "error" in cost_info:
+        print(f"[build] PDF printing cost calculation failed: {cost_info['error']}")
+    else:
+        print(f"[build] PDF printing cost: ${cost_info['total_cost']:.4f} "
+              f"({cost_info['page_count']} pages, {cost_info['sheets_used']} sheets, "
+              f"{cost_info['average_coverage_percent']:.1f}% avg coverage)")
+    
+    # Update metadata with cost info and regenerate
+    metadata_path = Path("build/metadata.json")
+    with metadata_path.open("r", encoding="utf-8") as f:
+        metadata = json.load(f)
+    metadata["printing_cost"] = cost_info
+    with metadata_path.open("w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2, sort_keys=True, ensure_ascii=False)
+    
+    # Second SILE run with updated metadata
+    return _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
 
 
 if __name__ == "__main__":

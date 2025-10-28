@@ -172,3 +172,72 @@ def fetch_posts(pages: List[str]) -> Dict[str, Any]:
         "items": items,
         "meta": {"fetched": datetime.now(timezone.utc).isoformat()},
     }
+
+
+def generate_sil(**kwargs) -> str:
+    """
+    Generate SILE code directly for the facebook section.
+    """
+    from tools import config
+    from tools.util import escape_sile
+    
+    try:
+        data = fetch_posts(config.FACEBOOK_PAGES)
+    except Exception as e:
+        # Fallback for missing API token
+        return f"""\\define[command=facebooksection]{{
+  \\sectionbox{{
+    \\sectiontitle{{Facebook}}
+    Facebook API not configured or unavailable.
+    \\par
+    \\Subtle{{{escape_sile(str(e))}}}
+    \\par
+  }}
+}}"""
+    
+    title = escape_sile(data["title"])
+    items = data.get("items", [])
+    
+    content_lines = [f"    \\sectiontitle{{{title}}}"]
+    
+    if not items:
+        content_lines.append("    No posts available")
+        content_lines.append("    \\par")
+    else:
+        for i, item in enumerate(items[:5]):  # Limit to 5 items
+            page = escape_sile(item.get("page", ""))
+            post_title = escape_sile(item.get("title", ""))
+            summary = escape_sile(item.get("summary", ""))
+            link = escape_sile(item.get("link", ""))
+            
+            # Page name as header
+            if page:
+                content_lines.append(f"    \\font[size=9pt, weight=600]{{{page}}}")
+                content_lines.append("    \\par")
+            
+            # Post title (italic if available)
+            if post_title:
+                content_lines.append(f"    \\font[style=italic]{{{post_title}}}")
+                content_lines.append("    \\par")
+            
+            # Summary text
+            if summary:
+                content_lines.append(f"    {summary}")
+                content_lines.append("    \\par")
+                
+            # Link (small)
+            if link:
+                content_lines.append(f"    \\font[size=8pt]{{{link}}}")
+                content_lines.append("    \\par")
+            
+            # Spacing between posts
+            if i < len(items) - 1 and i < 4:
+                content_lines.append("    \\vspace[height=0.5em]")
+    
+    content = "\n".join(content_lines)
+    
+    return f"""\\define[command=facebooksection]{{
+  \\sectionbox{{
+{content}
+  }}
+}}"""

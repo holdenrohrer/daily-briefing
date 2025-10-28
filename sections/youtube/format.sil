@@ -1,7 +1,0 @@
-% YouTube section class (placeholder)
-\define[command=youtubesection]{
-  \sectionbox{
-    \sectiontitle{YouTube}
-    Using data/youtube.json (placeholder)
-  }
-}
