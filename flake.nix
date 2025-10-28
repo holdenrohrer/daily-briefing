@@ -18,6 +18,7 @@
           matplotlib
           caldav
           imapclient
+          litellm
         ]);
         jbMonoTtf = pkgs.runCommand "jetbrains-mono-ttf-only" {} ''
           set -eu

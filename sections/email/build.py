@@ -51,6 +51,8 @@ def fetch_emails() -> List[Dict[str, Any]]:
                     # Convert date to UTC if needed
                     if email_date and email_date.tzinfo is None:
                         email_date = email_date.replace(tzinfo=timezone.utc)
+                    if email_date.astimezone(timezone.utc) < cutoff_time.astimezone(timezone.utc):
+                        continue
 
                     # Extract and decode body
                     body = ""

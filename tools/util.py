@@ -185,3 +185,16 @@ def get_password_from_store(pass_path):
         check=True
     )
     return result.stdout.strip().split('\n')[0]  # First line is the password
+
+def get_key_from_store(pass_path, key):
+    """Retrieve password from password-store using pass command."""
+    result = subprocess.run(
+        ['pass', 'show', pass_path],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+    key_section = result.stdout.strip().split('\n')[1:]
+    key_pairs = [kv.split(':',1) for kv in key_section]
+    kvs = {k: v.strip() for k,v in key_pairs}
+    return kvs[key]

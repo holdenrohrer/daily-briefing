@@ -305,37 +305,36 @@ def generate_sil(
     from tools import config
     data = fetch_rss(feeds=config.RSS_FEEDS, since=since, official=official)
     items = data.get("items", [])
-    
+
     def _render_item_group(source: str, group_items: List[Dict[str, Any]]) -> str:
         """Render a group of items from the same source."""
-        lines = [f"    \\rssGroupTitle{{{escape_sile(source)}}}"]
-        
+        lines = [f"    \\sectiontitle{{{escape_sile(source)}}}"]
+
         for item in group_items:
             title = escape_sile(str(item.get("title", "(untitled)")))
             lines.append(f"    \\rssItemTitle{{{title}}}")
-            
+
             for subtitle in item.get("subtitles", []):
                 if subtitle:
                     escaped_subtitle = escape_sile(str(subtitle))
                     lines.append(f"    \\rssSubtitle{{{escaped_subtitle}}}")
-            
+
             lines.append("    \\rssItemSeparator")
-        
+
         return "\n".join(lines)
-    
+
     # Group items by source while preserving order
     grouped_items = groupby(items, key=lambda x: str(x.get("source", "Blog")))
-    
+
     item_groups = [
-        _render_item_group(source, list(group_items)) 
+        _render_item_group(source, list(group_items))
         for source, group_items in grouped_items
     ]
-    
-    content = "\n    \\rssGroupSeparator\n".join(item_groups)
-    
+
+    content = "\n  }\n  \\sectionbox{\n".join(item_groups)
+
     return f"""\\define[command=rsssection]{{
   \\sectionbox{{
-    \\sectiontitle{{RSS Highlights}}
     {content}
   }}
 }}"""
@@ -345,10 +344,10 @@ if __name__ == "__main__":
     """Generate build/rss.sil when run directly."""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     from tools import config
-    
+
     output_path = Path("build/rss.sil")
     output_path.parent.mkdir(exist_ok=True)
-    
+
     sil_content = generate_sil(feeds=config.RSS_FEEDS)
     output_path.write_text(sil_content, encoding="utf-8")
     print(f"Generated {output_path}")

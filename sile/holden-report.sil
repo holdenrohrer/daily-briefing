@@ -24,16 +24,13 @@
   \par
 }
 
-\define[command=needspace]{
-  \skip[height=0pt plus 3in]
-  \break
-  \skip[height=0pt plus -3in]
-}
-
 \define[command=sectiontitle]{
   \par\font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
+  \penalty[penalty=100]
   \par
   \skip[height=.25em]
+  \penalty[penalty=100]
+  \par
 }
 
 % Running header: Left title + right-aligned ISO date
@@ -58,5 +55,5 @@
 \define[command=rssGroupTitle]{\font[size=12pt]{\Ink{\process}}\par}
 \define[command=rssItemTitle]{\font[size=10pt]{\Ink{\process}}\par}
 \define[command=rssSubtitle]{\Subtle{\font[size=8pt]{\process}}\par}
-\define[command=rssItemSeparator]{\skip[height=.5em]\penalty[penalty=-50]}
-\define[command=rssGroupSeparator]{\skip[height=1em]\penalty[penalty=-150]}
+\define[command=rssItemSeparator]{\skip[height=.5em]\penalty[penalty=150]}
+\define[command=rssGroupSeparator]{\skip[height=1em]\penalty[penalty=50]}

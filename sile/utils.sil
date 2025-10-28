@@ -80,13 +80,14 @@
 }
 
 \define[command=sectionbox]{
-  \skip[height=.7em,stretch=1fill]
+  \skip[height=.7em]
+  \vfill
   \hrulefill
-  \skip[height=.7em,stretch=1fill]
+  \skip[height=.7em]
   \process
-  \skip[height=0pt,stretch=2in]
+  \skip[height=0pt plus 3in]
   \penalty[penalty=-500]
-  \skip[height=0pt,stretch=-2in]
+  \skip[height=0pt plus -3in]
 }
 
 % Section box using typesetter:liner for per-line vertical gold rules.

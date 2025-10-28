@@ -365,7 +365,7 @@ def _invoke_lpr(printer: str, pdf_path: Path, verbose: bool = False) -> int:
     assert isinstance(pdf_path, Path), "pdf_path must be a Path"
     assert pdf_path.is_file(), f"PDF does not exist: {pdf_path}"
 
-    cmd = ["lpr", "-P", printer, str(pdf_path)]
+    cmd = ["lpr", *config.PRINTER_OPTIONS, "-P", printer, str(pdf_path)]
     if verbose:
         print(f"[build] Running: {' '.join(cmd)}")
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -481,14 +481,12 @@ def main(argv: list[str] | None = None) -> int:
         json.dump(metadata, f, indent=2, sort_keys=True, ensure_ascii=False)
 
     # Second SILE run with updated metadata
-    rc2 = _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
-    if rc2 != 0:
-        return rc2
+    _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
 
     # If this is an official build, decide whether to print
     if args.official:
         printer = config.PRINTER_NAME
-        threshold = float(config.PRINT_THRESHOLD_USD)
+        threshold = config.PRINT_THRESHOLD_USD
         if "error" in cost_info:
             print(
                 f"[build] Skipping print: cannot estimate cost: {cost_info.get('error')}",

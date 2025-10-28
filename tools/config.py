@@ -75,6 +75,7 @@ LLM: str = "openrouter/qwen/qwen3-8b"
 COMICS_FEED_TTL_S: int = 1800
 # TTL (in seconds) for caching LLM extraction results per comic page.
 COMICS_EXTRACTION_TTL_S: int = 86400
+COMICS_IMAGE_TTL_S: int = 86400
 
 # Printing configuration
 PRINTER_NAME: str = "holdens_printer"
