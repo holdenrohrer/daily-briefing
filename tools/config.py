@@ -26,6 +26,11 @@ RSS_FEEDS: List[str] = [
     "https://thezvi.substack.com/feed",
     "https://blog.kagi.com/rss.xml",
     "https://we-make-money-not-art.com/feed",
+    "https://karpathy.bearblog.dev/feed/",
+    "https://xkcd.com/rss.xml",
+    "https://www.smbc-comics.com/rss.php",
+    "https://existentialcomics.com/rss.xml",
+    "https://qwantz.com/rssfeed.php",
 ]
 
 CALENDAR_SOURCES: List[str] = [
@@ -60,3 +65,4 @@ OPENROUTER_CREDITS_URL: str = "https://openrouter.ai/api/v1/credits"
 # Printing configuration
 PRINTER_NAME: str = "holdens_printer"
 PRINT_THRESHOLD_USD: float = 1.00
+PRINTER_OPTIONS: List[str] = ["-o", "sides=two-sided-long-edge"]
