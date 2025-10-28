@@ -159,24 +159,16 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
         api_base="https://openrouter.ai/api/v1",
         api_key=token,
         temperature=0,
-        max_tokens=800,
-        extra_headers={
-            "X-Title": "Comics Extractor",
-            "X-OpenRouter-Zero-Data-Retention": "true",
+        extra_body={
+            "zdr": True
         },
         num_retries=5,
     )
 
-    try:
-        content = resp["choices"][0]["message"]["content"]  # type: ignore[index]
-    except Exception as e:
-        raise RuntimeError(f"Unexpected LLM response structure: {type(resp)}; error: {e}")
+    content = resp['choices'][0]['message']['content']  # type: ignore[index]
+    parsed = json.loads(content)
 
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"LLM did not return valid JSON: {e}\n---\n{content}")
-
+    print(type(parsed), parsed)
     if not isinstance(parsed, dict):
         raise TypeError("Parsed LLM output is not a JSON object")
 
@@ -210,21 +202,18 @@ def _extract_webcomic_cached(url: str) -> ComicExtraction:
         html = fetch_html(url)
         return _llm_extract_comic(url=url, html=html, model=getattr(config, "LLM", None))
 
-    ttl = int(getattr(config, "COMICS_EXTRACTION_TTL_S", 86400))
+    ttl = config.COMICS_EXTRACTION_TTL_S
     return cache.get(f"comics:extract:{url}", _do, ttl)
 
 
 def _fetch_url(url: str, timeout: float = 10.0) -> bytes:
-    req = Request(url, headers={"User-Agent": "daily-briefing/0.1 (+https://example.local)"})
+    req = Request(url)
     with urlopen(req, timeout=timeout) as resp:
         return resp.read()
 
 
 def fetch_comics(
     feeds: List[str] | None = None,
-    per_feed_limit: int = 5,
-    total_limit: int = 20,
-    ttl_s: int | None = None,
     since: datetime | None = None,
     official: bool = False,
 ) -> Dict[str, Any]:
@@ -247,11 +236,9 @@ def fetch_comics(
     - If 'feeds' is None or empty, defaults are taken from tools.config.COMIC_FEEDS.
     - If 'since' is provided, only include items with published >= since (UTC).
     """
-    if feeds is None or len(feeds) == 0:
-        feeds = list(getattr(config, "COMIC_FEEDS", []) or [])
-    assert isinstance(feeds, list) and len(feeds) > 0, "No COMIC_FEEDS configured in tools/config.py"
+    feeds = config.COMIC_FEEDS
 
-    ttl = int(ttl_s if ttl_s is not None else int(getattr(config, "COMICS_FEED_TTL_S", 1800)))
+    ttl = config.COMICS_FEED_TTL_S
 
     all_items: List[Dict[str, Any]] = []
     cache_hits = 0
@@ -349,11 +336,6 @@ def fetch_comics(
 
         all_items.extend(items)
 
-        # Enforce total limit if requested
-        if total_limit and len(all_items) >= total_limit:
-            all_items = all_items[:total_limit]
-            break
-
     groups: Dict[str, Dict[str, Any]] = {}
     for it in all_items:
         src = str(it.get("source") or "")
@@ -381,7 +363,7 @@ def fetch_comics(
     }
 
 
-def _sile_img(src: str) -> str:
+def _sile_img(url: str) -> str:
     """
     Render a SILE image command for the given URL.
     We escape double-quotes to keep attribute quoting intact.
@@ -430,9 +412,10 @@ def generate_sil(
                 hidden = extraction.get("hidden_image")
                 if isinstance(hidden, str) and hidden.strip():
                     lines.append(_sile_img(hidden))
-            except Exception:
+            except Exception as e:
                 # On any failure, emit the fallback message only.
                 lines.append(f"    \\rssItemTitle{{{title} couldn't be parsed}}")
+                raise e
 
             # Separator between items
             lines.append("    \\rssItemSeparator")
