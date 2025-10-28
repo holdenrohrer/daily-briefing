@@ -13,9 +13,12 @@ from typing import Any, Dict, List, Optional, Tuple, TypedDict
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+import hashlib
+from io import BytesIO
 
 import feedparser  # type: ignore
 import requests
+from PIL import Image
 from litellm import completion  # type: ignore
 
 from tools import cache
@@ -363,12 +366,48 @@ def fetch_comics(
     }
 
 
+def _cached_local_png_for_url(url: str, timeout: float = 20.0) -> str:
+    """
+    Download an image URL and cache a converted PNG under build/comics_images/.
+    - Uses tools.cache.get with key "comics:image:<url>" and ttl config.COMIC_IMAGE_TTL_S.
+    - Hashes the downloaded bytes (sha256) to deduplicate filenames across identical content.
+    - Always writes PNG. If the original is not PNG, converts via Pillow; if it is PNG, re-encodes.
+    Raises AssertionError for invalid input or empty responses.
+    Returns the filesystem path (string) to the PNG file.
+    """
+    assert isinstance(url, str) and url.startswith(("http://", "https://")), "url must be http(s)"
+    ttl = getattr(config, "COMIC_IMAGE_TTL_S", None)
+    assert isinstance(ttl, int) and ttl > 0, "config.COMIC_IMAGE_TTL_S must be a positive int"
+
+    def _do() -> str:
+        headers = {"User-Agent": "daily-briefing/comics-image/0.1 (+https://example.local)"}
+        r = requests.get(url, headers=headers, timeout=timeout)
+        r.raise_for_status()
+        data = r.content
+        assert isinstance(data, (bytes, bytearray)) and len(data) > 0, "Downloaded empty image"
+
+        digest = hashlib.sha256(data).hexdigest()[:16]
+        out_dir = Path("build/comics_images")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{digest}.png"
+
+        if not out_path.exists():
+            with Image.open(BytesIO(data)) as im:
+                if im.mode not in ("RGB", "RGBA"):
+                    im = im.convert("RGBA")
+                im.save(out_path, format="PNG", optimize=True)
+        return str(out_path)
+
+    return cache.get(f"comics:image:{url}", _do, ttl)
+
+
 def _sile_img(url: str) -> str:
     """
-    Render a SILE image command for the given URL.
-    We escape double-quotes to keep attribute quoting intact.
+    Render a SILE image command for a remote image URL by downloading to build/.
+    Returns a SILE \\img command using the local PNG path.
     """
-    safe = src.replace('"', "%22")
+    local = _cached_local_png_for_url(url)
+    safe = local.replace('"', "%22")
     return f'    \\img[src="{safe}"]'
 
 
