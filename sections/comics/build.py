@@ -130,8 +130,6 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
         "OPENROUTER_API_TOKEN must be set in tools/config.py"
     )
 
-    cheap_model = model or getattr(config, "LLM", "openrouter/qwen/qwen3-8b")
-
     system_prompt = (
         "You are a precise webcomic extraction assistant. Parse the provided HTML for a webcomic page "
         "and return a STRICT JSON object with the following keys:\n"
@@ -153,7 +151,7 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
     user_prompt = f"URL: {url}\nHTML:\n{condensed}"
 
     resp = completion(
-        model=cheap_model,
+        model=config.LLM,
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system_prompt},
@@ -307,20 +305,6 @@ def fetch_comics(
                         "source_slug": _slugify(host),
                         "source_host": host,
                         "slug": "error-parsing-feed",
-                        "published": _iso_now(),
-                        "summary": str(e),
-                    }
-                )
-            except Exception as e:
-                host = urlparse(url).netloc
-                items.append(
-                    {
-                        "title": "Unexpected error fetching feed",
-                        "link": url,
-                        "source": host,
-                        "source_slug": _slugify(host),
-                        "source_host": host,
-                        "slug": "unexpected-error",
                         "published": _iso_now(),
                         "summary": str(e),
                     }
