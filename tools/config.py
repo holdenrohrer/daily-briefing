@@ -12,6 +12,7 @@ SECTIONS: List[str] = [
     "email",
     "caldav",
     "rss",
+    "comics",
     "api_spend",
     "youtube",
     "facebook",
@@ -68,6 +69,12 @@ EMAIL_ACCOUNTS: List[Dict[str, str]] = [
 OPENROUTER_API_TOKEN: str = get_key_from_store("openrouter", "apikey")
 OPENROUTER_CREDITS_URL: str = "https://openrouter.ai/api/v1/credits"
 LLM: str = "openrouter/qwen/qwen3-8b"
+
+# Comics section caching configuration
+# TTL (in seconds) for caching RSS feed fetches for comics sources.
+COMICS_FEED_TTL_S: int = 1800
+# TTL (in seconds) for caching LLM extraction results per comic page.
+COMICS_EXTRACTION_TTL_S: int = 86400
 
 # Printing configuration
 PRINTER_NAME: str = "holdens_printer"
