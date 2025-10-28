@@ -383,7 +383,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument(
         "--sile",
-        default="sile/main.sil",
+        default="build/main.sil",
         type=str,
         help="Path to SILE entrypoint (.sil).",
     )
@@ -479,6 +479,7 @@ def main(argv: list[str] | None = None) -> int:
     metadata["printing_cost"] = cost_info
     with metadata_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, sort_keys=True, ensure_ascii=False)
+    _generate_metadata_sil()
 
     # Second SILE run with updated metadata
     _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
