@@ -482,16 +482,19 @@ def generate_sil(**kwargs) -> str:
     """
     from tools import config
     from tools.util import escape_sile
-    
+
     data = build_daily_svg(config.WEATHER_SVG_PATH)
     title = escape_sile(data["title"])
-    
+
     # Use build paths for charts
     temp_path = "build/charts/weather_temp.png"
-    humidity_path = "build/charts/weather_humidity.png" 
+    humidity_path = "build/charts/weather_humidity.png"
     precip_path = "build/charts/weather_precip.png"
-    
+
     return f"""\\define[command=weathersection]{{
+\\vfill
+\\par
+\\penalty[penalty=-500]
   \\sectionbox{{
     \\sectiontitle{{{title}}}
     \\font[size=9pt]{{Temperature (°C)}}
