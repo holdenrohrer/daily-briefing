@@ -384,10 +384,33 @@ def _cached_local_png_for_url(url: str, timeout: float = 20.0) -> str:
 def _sile_img(url: str) -> str:
     """
     Render a SILE image command for a remote image URL by downloading to build/.
-    Returns a SILE \\img command using the local PNG path.
+    Preserves aspect ratio and constrains to config.COMICS_IMAGE_MAX_WIDTH_IN x
+    config.COMICS_IMAGE_MAX_HEIGHT_IN. Fails fast on invalid inputs.
     """
+    assert isinstance(url, str) and url.strip() != "", "url must be a non-empty str"
     local = _cached_local_png_for_url(url)
-    return f'    \\img[src="{local}"]'
+    assert isinstance(local, str) and local.endswith(".png") and Path(local).exists(), "Local PNG missing"
+
+    max_h = getattr(config, "COMICS_IMAGE_MAX_HEIGHT_IN")
+    max_w = getattr(config, "COMICS_IMAGE_MAX_WIDTH_IN")
+    assert isinstance(max_h, (int, float)) and max_h > 0, "Invalid COMICS_IMAGE_MAX_HEIGHT_IN"
+    assert isinstance(max_w, (int, float)) and max_w > 0, "Invalid COMICS_IMAGE_MAX_WIDTH_IN"
+
+    with Image.open(local) as im:
+        w, h = im.size
+    assert isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0, "Invalid image dimensions"
+
+    ar = w / h  # width-to-height ratio
+    width_from_h = max_h * ar
+    if width_from_h <= max_w:
+        width_in = width_from_h
+        height_in = max_h
+    else:
+        width_in = max_w
+        height_in = max_w / ar
+
+    safe = local.replace('"', "%22")
+    return f'    \\img[src="{safe}", width={width_in:.3f}in, height={height_in:.3f}in]'
 
 
 def generate_sil(

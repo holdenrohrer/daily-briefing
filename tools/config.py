@@ -76,6 +76,9 @@ COMICS_FEED_TTL_S: int = 1800
 # TTL (in seconds) for caching LLM extraction results per comic page.
 COMICS_EXTRACTION_TTL_S: int = 86400
 COMICS_IMAGE_TTL_S: int = 86400
+# Maximum rendered image size (inches) for comics images in SILE
+COMICS_IMAGE_MAX_HEIGHT_IN: float = 6.0
+COMICS_IMAGE_MAX_WIDTH_IN: float = 5.0
 
 # Printing configuration
 PRINTER_NAME: str = "holdens_printer"
