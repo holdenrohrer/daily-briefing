@@ -13,14 +13,11 @@
         python = pkgs.python3;
         pythonEnv = python.withPackages (ps: with ps; [
           requests
-          feedparser
           beautifulsoup4
-          lxml
-          pandas
+          feedparser
           matplotlib
-          pillow
-          pyyaml
           caldav
+          imapclient
         ]);
         jbMonoTtf = pkgs.runCommand "jetbrains-mono-ttf-only" {} ''
           set -eu

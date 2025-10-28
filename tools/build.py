@@ -68,28 +68,25 @@ def _generate_main_sil() -> None:
         "",
         "% Per-section includes (generated sections or legacy format.sil)",
     ]
-    
+
     for section in config.SECTIONS:
         # Check if section has generated .sil file, otherwise use legacy format.sil
         sil_path = Path(f"build/{section}.sil")
-        if sil_path.exists():
-            lines.append(f"\\include[src={section}.sil]")
-        else:
-            lines.append(f"\\include[src=../sections/{section}/format.sil]")
-    
+        lines.append(f"\\include[src={section}.sil]")
+
     lines.extend([
         "",
         "% Per-section commands",
     ])
-    
+
     for section in config.SECTIONS:
         lines.append(f"\\{section}section")
-    
+
     lines.extend([
         "",
         "\\end{document}",
     ])
-    
+
     main_sil_path = Path("build/main.sil")
     main_sil_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -120,32 +117,26 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
 
     # Get section data using dynamic approach based on config
     section_data = {}
-    
+
     # Build args that some sections might need (but most should get from config.py)
     build_args = {
         "since": cutoff_dt,  # Only for time-filtered sections like RSS
         "official": official,  # Only for sections that care about official builds
     }
-    
+
     for section in config.SECTIONS:
-            
-        # Get generate_sil function directly
-        try:
-            if section == "metadata":
-                sil_generator = _generate_metadata_sil
-            else:
-                # Direct import of generate_sil from sections.{section}.build
-                module = importlib.import_module(f"sections.{section}.build")
-                sil_generator = getattr(module, "generate_sil")
-            # Most sections should get what they need from config.py
-            # Only pass build-specific args that can't be in config
-            sil_content = sil_generator(**build_args)
-            _write_sil(f"build/{section}.sil", sil_content)
-        except Exception as e:
-            if verbose:
-                print(f"[build] Failed to generate {section}: {e}")
-            section_data[section] = {"error": str(e)}
-    
+
+        if section == "metadata":
+            sil_generator = _generate_metadata_sil
+        else:
+            # Direct import of generate_sil from sections.{section}.build
+            module = importlib.import_module(f"sections.{section}.build")
+            sil_generator = getattr(module, "generate_sil")
+        # Most sections should get what they need from config.py
+        # Only pass build-specific args that can't be in config
+        sil_content = sil_generator(**build_args)
+        _write_sil(f"build/{section}.sil", sil_content)
+
     # Extract individual section data for metadata
     rss_data = section_data.get("rss", {})
     wiki_data = section_data.get("wikipedia", {})
@@ -220,40 +211,40 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
 def _generate_metadata_sil(**kwargs) -> str:
     """Generate SILE code directly for the metadata section."""
     from tools.util import escape_sile
-    
+
     # Read the metadata JSON that was already generated
     with open("build/metadata.json", "r", encoding="utf-8") as f:
         data = json.load(f)
-    
+
     content_lines = [
-        "  \\eject\\vfilll",
+        "  \\penalty[penalty=-500]\\vfilll",
         "  \\font[weight=200,size=6pt]{",
         "    \\set[parameter=document.baselineskip, value=8pt]",
         "    \\novbreak",
         "    Metadata",
         "    \\par",
     ]
-    
+
     if data.get("created_iso"):
         content_lines.append(f"    Created: {escape_sile(str(data['created_iso']))}")
         content_lines.append("    \\par")
     if data.get("cutoff_iso"):
         content_lines.append(f"    Cutoff: {escape_sile(str(data['cutoff_iso']))}")
         content_lines.append("    \\par")
-    
+
     content_lines.append(f"    Official build: {'Yes' if data.get('official') else 'No'}")
     content_lines.append("    \\par")
-    
+
     if data.get("git_rev"):
         content_lines.append(f"    Git rev: {escape_sile(str(data['git_rev']))}")
         content_lines.append("    \\par")
-    
+
     if data.get("python_version"):
         pyver = str(data["python_version"])
         firstline = pyver.split('\n')[0] if '\n' in pyver else pyver
         content_lines.append(f"    Python: {escape_sile(firstline)}")
         content_lines.append("    \\par")
-    
+
     sections = data.get("sections", {})
     if sections.get("rss", {}).get("items"):
         content_lines.append(f"    RSS items: {sections['rss']['items']}")
@@ -267,16 +258,16 @@ def _generate_metadata_sil(**kwargs) -> str:
     if sections.get("caldav", {}).get("items"):
         content_lines.append(f"    CALDAV items: {sections['caldav']['items']}")
         content_lines.append("    \\par")
-    
+
     if data.get("printing_cost"):
         cost = data["printing_cost"]
         if not cost.get("error"):
             content_lines.append(f"    Printing Cost: ${cost.get('total_cost', 0):.2f}")
             content_lines.append("    \\par")
-    
+
     content_lines.append("  }")
     content = "\n".join(content_lines)
-    
+
     return f"""\\define[command=metadatasection]{{
 {content}
 }}"""
@@ -389,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
     cutoff_dt = util.get_official_cutoff_time()
 
     _write_per_section_jsons(verbose=bool(args.verbose), cutoff_dt=cutoff_dt, official=bool(args.official))
-    
+
     # Generate build/main.sil based on available sections
     _generate_main_sil()
     if args.verbose:
@@ -416,12 +407,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # Use build/main.sil instead of the provided sile_main
     build_main_sil = Path("build/main.sil")
-    
-    # First SILE run  
+
+    # First SILE run
     sile_result = _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
     if sile_result != 0:
         return sile_result
-    
+
     # Calculate PDF printing cost and update metadata
     cost_info = util.calculate_pdf_printing_cost(output_pdf)
     if "error" in cost_info:
@@ -430,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[build] PDF printing cost: ${cost_info['total_cost']:.4f} "
               f"({cost_info['page_count']} pages, {cost_info['sheets_used']} sheets, "
               f"{cost_info['average_coverage_percent']:.1f}% avg coverage)")
-    
+
     # Update metadata with cost info and regenerate
     metadata_path = Path("build/metadata.json")
     with metadata_path.open("r", encoding="utf-8") as f:
@@ -438,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     metadata["printing_cost"] = cost_info
     with metadata_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, sort_keys=True, ensure_ascii=False)
-    
+
     # Second SILE run with updated metadata
     return _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
 

@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import List, Dict
+
+from tools.util import get_password_from_store
 
 # Centralized configuration for data producers
 
 # Sections configuration - single source of truth
 SECTIONS: List[str] = [
-    "rss",
-    "wikipedia",
-    "api_spend",
-    "youtube", 
-    "facebook",
+    "email",
     "caldav",
+    "rss",
+    "api_spend",
+    "youtube",
+    "facebook",
     "weather",
     "metadata",
 ]
@@ -26,6 +28,11 @@ RSS_FEEDS: List[str] = [
     "https://we-make-money-not-art.com/feed",
 ]
 
+CALENDAR_SOURCES: List[str] = [
+    {"url": "https://dav.hrhr.dev/", "username": "hr", "password": get_password_from_store("hrhr.dev/hr")},
+    {"url": "https://dav.hrhr.dev/", "username": "family", "password": get_password_from_store("hrhr.dev/family")},
+]
+
 YOUTUBE_CHANNELS: List[str] = []
 
 FACEBOOK_PAGES: List[str] = []
@@ -35,6 +42,15 @@ LAT: float = 33.996805
 LON: float = -84.295903
 
 WEATHER_SVG_PATH: str | Path = "build/charts/weather.svg"
+
+# Email configuration
+EMAIL_ACCOUNTS: List[Dict[str, str]] = [
+    {
+        "server": "hrhr.dev",
+        "username": "hr",
+        "password": get_password_from_store("hrhr.dev/hr")
+    }
+]
 
 # OpenRouter API configuration
 # NOTE: Fill OPENROUTER_API_TOKEN with your actual token. Code asserts non-empty.
