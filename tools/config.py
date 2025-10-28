@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Dict
 
-from tools.util import get_password_from_store
+from tools.util import get_password_from_store, get_key_from_store
 
 # Centralized configuration for data producers
 
@@ -18,19 +18,6 @@ SECTIONS: List[str] = [
     "weather",
     "metadata",
 ]
-# RSS rendering configuration
-# When True, the RSS section will render each source (blog/site) in its own section box.
-RSS_PER_SOURCE_SECTIONBOX: bool = True
-
-# Hosts to treat as "webcomics" for full-content rendering.
-# These will be allowed to include multiple images, title text, extra descriptive text,
-# and, for SMBC, an optional hidden alt comic image.
-RSS_COMIC_HOSTS: List[str] = [
-    "xkcd.com",
-    "www.smbc-comics.com",
-    "existentialcomics.com",
-    "qwantz.com",
-]
 
 # The canonical parts a comic may include.
 RSS_COMIC_ALLOWED_PARTS: List[str] = ["title_text", "images", "extra_text", "hidden_image"]
@@ -43,6 +30,9 @@ RSS_FEEDS: List[str] = [
     "https://blog.kagi.com/rss.xml",
     "https://we-make-money-not-art.com/feed",
     "https://karpathy.bearblog.dev/feed/",
+]
+
+COMIC_FEEDS: List[str] = [
     "https://xkcd.com/rss.xml",
     "https://www.smbc-comics.com/rss.php",
     "https://existentialcomics.com/rss.xml",
@@ -75,8 +65,9 @@ EMAIL_ACCOUNTS: List[Dict[str, str]] = [
 
 # OpenRouter API configuration
 # NOTE: Fill OPENROUTER_API_TOKEN with your actual token. Code asserts non-empty.
-OPENROUTER_API_TOKEN: str = "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"
+OPENROUTER_API_TOKEN: str = get_key_from_store("openrouter", "apikey")
 OPENROUTER_CREDITS_URL: str = "https://openrouter.ai/api/v1/credits"
+LLM: str = "openrouter/qwen/qwen3-8b"
 
 # Printing configuration
 PRINTER_NAME: str = "holdens_printer"
