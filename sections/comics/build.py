@@ -134,10 +134,10 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
         "You are a precise webcomic extraction assistant. Parse the provided HTML for a webcomic page "
         "and return a STRICT JSON object with the following keys:\n"
         '  - "title_text": string (comic title/header; empty if not found)\n'
-        '  - "images": array of strings (absolute image URLs in reading order, excluding hidden_image)\n'
+        '  - "images": array of strings (absolute image URLs with schema in reading order)\n'
         '  - "extra_text": array of strings (short descriptive text blocks, in order)\n'
-        '  - "hidden_image": string or null (SMBC often includes a second hidden comic)\n'
         "Rules:\n"
+        "- If a higher resolution image is available in srcset, use that instead"
         "- Only include the main text content specific to this comic. Do not include text which is on every comic page.\n"
         "- Do NOT include transcript. Do NOT include alt-text.\n"
         "- ALWAYS include mouseover text. ALWAYS include explanation text.\n"
@@ -169,7 +169,6 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
     content = resp['choices'][0]['message']['content']  # type: ignore[index]
     parsed = json.loads(content)
 
-    print(type(parsed), parsed)
     if not isinstance(parsed, dict):
         raise TypeError("Parsed LLM output is not a JSON object")
 
@@ -255,7 +254,7 @@ def fetch_comics(
                 source_title = (getattr(d, "feed", {}) or {}).get("title") or source_host
                 source_slug = _slugify(source_title or source_host)
                 entries = list(getattr(d, "entries", []) or [])
-                for entry in entries[: per_feed_limit or len(entries)]:
+                for entry in entries:
                     title = unescape((entry.get("title") or "(untitled)")).strip()
                     link = entry.get("link") or entry.get("id") or url
 
@@ -398,19 +397,20 @@ def _sile_img(url: str) -> str:
 
     with Image.open(local) as im:
         w, h = im.size
-    assert isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0, "Invalid image dimensions"
+        w /= 72.27
+        h /= 72.27 # 72.27pt = 1in
 
-    ar = w / h  # width-to-height ratio
-    width_from_h = max_h * ar
-    if width_from_h <= max_w:
-        width_in = width_from_h
-        height_in = max_h
-    else:
-        width_in = max_w
-        height_in = max_w / ar
+    if w > max_w:
+        resize_ratio = max_w/w
+        h *= resize_ratio
+        w *= resize_ratio
+    if h > max_h:
+        resize_ratio = max_h/h
+        h *= resize_ratio
+        w *= resize_ratio
 
     safe = local.replace('"', "%22")
-    return f'    \\img[src="{safe}", width={width_in:.3f}in, height={height_in:.3f}in]'
+    return f'    \\img[src="{safe}", width={w:.3f}in, height={h:.3f}in]'
 
 
 def generate_sil(
@@ -431,7 +431,7 @@ def generate_sil(
     items: List[Dict[str, Any]] = data.get("items", [])
 
     def _render_item_group(source: str, group_items: List[Dict[str, Any]]) -> str:
-        lines: List[str] = [f"    \\rssGroupTitle{{{escape_sile(source)}}}"]
+        lines: List[str] = [f"    \\vfill\\sectiontitle{{{escape_sile(source)}}}"]
         for item in group_items:
             title = escape_sile(str(item.get("title", "(untitled)")))
             link = str(item.get("link") or "")
@@ -439,8 +439,9 @@ def generate_sil(
                 extraction = _extract_webcomic_cached(link)
                 # Title line
                 lines.append(f"    \\rssItemTitle{{{title}}}")
+                lines.append("    \\par")
                 if extraction.get("title_text"):
-                    lines.append(f"    \\rssSubtitle{{{escape_sile(str(extraction['title_text']))}}}")
+                    lines.append(f"    {escape_sile(str(extraction['title_text']))}")
                 # Images
                 for img_url in extraction.get("images", []):
                     if isinstance(img_url, str) and img_url:
@@ -449,10 +450,6 @@ def generate_sil(
                 for txt in extraction.get("extra_text", []):
                     if isinstance(txt, str) and txt.strip():
                         lines.append(f"    \\rssSubtitle{{{escape_sile(txt)}}}")
-                # Hidden image (e.g., SMBC)
-                hidden = extraction.get("hidden_image")
-                if isinstance(hidden, str) and hidden.strip():
-                    lines.append(_sile_img(hidden))
             except Exception as e:
                 # On any failure, emit the fallback message only.
                 lines.append(f"    \\rssItemTitle{{{title} couldn't be parsed}}")
@@ -470,13 +467,12 @@ def generate_sil(
         for source, group_items in grouped_items
     ]
 
-    content = "\n    \\rssGroupSeparator\n".join(item_groups)
+    content = "\n  }\n  \\sectionbox{\n".join(item_groups)
 
     return f"""\\define[command=comicssection]{{
-  \\sectionbox{{
-    \\sectiontitle{{Comics}}
-    {content}
-  }}
+  \\begin{{raggedright}}\\sectionbox{{
+{content}
+  }}\\end{{raggedright}}
 }}"""
 
 

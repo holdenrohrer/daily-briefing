@@ -24,6 +24,18 @@
   \par
 }
 
+\define[command=sectionbox]{
+  \skip[height=.7em]
+  \vfill
+  \par
+  \vpenalty[penalty=-500]
+  \par
+  \hrulefill
+  \skip[height=.7em]
+  \process
+}
+
+
 \define[command=sectiontitle]{
   \par\font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
   \penalty[penalty=100]

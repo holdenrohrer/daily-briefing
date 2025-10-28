@@ -135,7 +135,7 @@ def calculate_pdf_printing_cost(pdf_path: Path) -> dict[str, Any]:
             if len(values) >= 4:
                 c, m, y, k = values[:4]
                 # Total coverage (sum of all channels)
-                total_coverage = float(c) + float(m) + float(y) + float(k)
+                total_coverage = (float(c) + float(m) + float(y) + float(k))/4*100
                 page_coverages.append(total_coverage)
 
         page_count = len(page_coverages)

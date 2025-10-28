@@ -19,6 +19,7 @@
           caldav
           imapclient
           litellm
+          tenacity
         ]);
         jbMonoTtf = pkgs.runCommand "jetbrains-mono-ttf-only" {} ''
           set -eu

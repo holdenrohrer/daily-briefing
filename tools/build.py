@@ -91,6 +91,15 @@ def _generate_main_sil() -> None:
     main_sil_path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _write_sil(file: str | Path, sil_content: str, verbose: bool = False) -> None:
+    path = Path(file)
+    _ensure_dir(path.parent)
+    with path.open("w", encoding="utf-8") as fh:
+        fh.write(sil_content)
+    if verbose:
+        print(f"[build] Wrote {file}")
+
+
 def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None = None, official: bool = False) -> None:
     """
     Write per-section JSON files under build/.
@@ -98,14 +107,6 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
     to limit items published at or after that moment. When 'official' is True,
     rss metadata will be annotated accordingly.
     """
-    def _write_sil(file: str | Path, sil_content: str) -> None:
-        path = Path(file)
-        _ensure_dir(path.parent)
-        with path.open("w", encoding="utf-8") as fh:
-            fh.write(sil_content)
-        if verbose:
-            print(f"[build] Wrote {file}")
-
     def _fetch_json(file: str | Path, getter: Callable[..., Any], *args, **kwargs) -> Dict[str, Any]:
         data = getter(*args, **kwargs)
         if not isinstance(data, dict):
@@ -135,7 +136,7 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
         # Most sections should get what they need from config.py
         # Only pass build-specific args that can't be in config
         sil_content = sil_generator(**build_args)
-        _write_sil(f"build/{section}.sil", sil_content)
+        _write_sil(f"build/{section}.sil", sil_content, verbose)
 
     # Extract individual section data for metadata
     rss_data = section_data.get("rss", {})
@@ -217,7 +218,7 @@ def _generate_metadata_sil(**kwargs) -> str:
         data = json.load(f)
 
     content_lines = [
-        "  \\penalty[penalty=-500]\\vfilll",
+        "  \\vpenalty[penalty=-500]\\vfilll",
         "  \\font[weight=200,size=6pt]{",
         "    \\set[parameter=document.baselineskip, value=8pt]",
         "    \\novbreak",
@@ -434,6 +435,7 @@ def main(argv: list[str] | None = None) -> int:
     # Generate build/main.sil based on available sections
     _generate_main_sil()
     if args.verbose:
+        verbose = True
         print("[build] Generated build/main.sil")
 
     # If this is an official build, persist the timestamp
@@ -479,7 +481,8 @@ def main(argv: list[str] | None = None) -> int:
     metadata["printing_cost"] = cost_info
     with metadata_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, sort_keys=True, ensure_ascii=False)
-    _generate_metadata_sil()
+
+    _write_sil("build/metadata.sil", _generate_metadata_sil(), args.verbose)
 
     # Second SILE run with updated metadata
     _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
