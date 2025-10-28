@@ -18,6 +18,22 @@ SECTIONS: List[str] = [
     "weather",
     "metadata",
 ]
+# RSS rendering configuration
+# When True, the RSS section will render each source (blog/site) in its own section box.
+RSS_PER_SOURCE_SECTIONBOX: bool = True
+
+# Hosts to treat as "webcomics" for full-content rendering.
+# These will be allowed to include multiple images, title text, extra descriptive text,
+# and, for SMBC, an optional hidden alt comic image.
+RSS_COMIC_HOSTS: List[str] = [
+    "xkcd.com",
+    "www.smbc-comics.com",
+    "existentialcomics.com",
+    "qwantz.com",
+]
+
+# The canonical parts a comic may include.
+RSS_COMIC_ALLOWED_PARTS: List[str] = ["title_text", "images", "extra_text", "hidden_image"]
 
 RSS_FEEDS: List[str] = [
     "https://feeds.arstechnica.com/arstechnica/index",
