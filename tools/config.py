@@ -11,12 +11,12 @@ from tools.util import get_password_from_store, get_key_from_store
 SECTIONS: List[str] = [
     "email",
     "caldav",
+    "weather",
     "rss",
     "comics",
     "api_spend",
     "youtube",
     "facebook",
-    "weather",
     "metadata",
 ]
 
@@ -31,6 +31,9 @@ RSS_FEEDS: List[str] = [
     "https://blog.kagi.com/rss.xml",
     "https://we-make-money-not-art.com/feed",
     "https://karpathy.bearblog.dev/feed/",
+    "https://fivebooks.com/feed",
+    "https://solar.lowtechmagazine.com/index.xml",
+    "https://www.mots-surannes.fr/feed/",
 ]
 
 COMIC_FEEDS: List[str] = [
