@@ -45,8 +45,6 @@ def _write_json(path: Path, data: Dict[str, Any]) -> None:
         json.dump(data, fh, indent=2, sort_keys=True, ensure_ascii=False)
 
 
-
-
 def _parse_iso(ts: str | None) -> datetime | None:
     if not ts:
         return None
@@ -366,7 +364,7 @@ def _invoke_lpr(printer: str, pdf_path: Path, verbose: bool = False) -> int:
     assert isinstance(pdf_path, Path), "pdf_path must be a Path"
     assert pdf_path.is_file(), f"PDF does not exist: {pdf_path}"
 
-    cmd = ["lpr", *config.PRINTER_OPTIONS, "-P", printer, str(pdf_path)]
+    cmd = ["lpr", "-P", printer, *config.PRINTER_OPTIONS, str(pdf_path)]
     if verbose:
         print(f"[build] Running: {' '.join(cmd)}")
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)

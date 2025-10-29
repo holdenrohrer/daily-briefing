@@ -166,11 +166,13 @@ function class:finish ()
 end
 
 class:registerCommand("vfilll", function (_, _)
-    SILE.typesetter:pushVglue(SILE.types.node.vglue(SILE.types.length(0, 1e26, 0)))
+    SILE.typesetter:leaveHmode()
+    SILE.typesetter:pushExplicitVglue(SILE.types.node.vglue(SILE.types.length(0, 1e26, 0)))
 end)
 
 class:registerCommand("vfil", function (_, _)
-    SILE.typesetter:pushVglue(SILE.types.node.vglue(SILE.types.length(0, 1e6, 0)))
+    SILE.typesetter:leaveHmode()
+    SILE.typesetter:pushExplicitVglue(SILE.types.node.vglue(SILE.types.length(0, 1e6, 0)))
 end)
 
 class:registerCommand("vpenalty", function(options, content)

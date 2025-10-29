@@ -29,9 +29,9 @@
   \par\noindent\hrulefill\break
   \skip[height=.7em]
   \process
-  %\skip[height=1em plus 3in,discardable=true]
-  %\vpenalty[penalty=-500]
-  %\skip[height=0pt plus -3in]
+  \skip[height=0pt plus 1in]
+  \vpenalty[penalty=-500]
+  \skip[height=0pt plus -1in]
 }
 
 

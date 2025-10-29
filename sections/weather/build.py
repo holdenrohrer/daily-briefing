@@ -26,13 +26,6 @@ class HourPoint:
     precip_pct: float
 
 
-def _env_float(name: str, default: float) -> float:
-    try:
-        return float(os.environ.get(name, default))
-    except (TypeError, ValueError):
-        return default
-
-
 def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
     """
     Fetch up-to-24h hourly forecast (temp, humidity, precip prob) from Open-Meteo.
@@ -232,8 +225,8 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     base = Path(path)
     base.parent.mkdir(parents=True, exist_ok=True)
 
-    lat = _env_float("WEATHER_LAT", config.LAT)
-    lon = _env_float("WEATHER_LON", config.LON)
+    lat = config.LAT
+    lon = config.LON
 
     error_msg = None
     points: List[HourPoint] = []
@@ -497,10 +490,10 @@ def generate_sil(**kwargs) -> str:
   \\sectionbox{{
     \\sectiontitle{{{title}}}
     \\font[size=9pt]{{Temperature (°C)}}
-    \\cr\\noindent\\img[src={temp_path}, width=100%lw]
-    \\cr\\noindent\\font[size=9pt]{{Humidity (\\%)}}
-    \\cr\\noindent\\img[src={humidity_path}, width=100%lw]
-    \\cr\\noindent\\font[size=9pt]{{Precipitation chance (\\%)}}
-    \\cr\\noindent\\img[src={precip_path}, width=100%lw]
+    \\cr\\img[src={temp_path}, width=100%lw]
+    \\cr\\font[size=9pt]{{Humidity (\\%)}}
+    \\cr\\img[src={humidity_path}, width=100%lw]
+    \\cr\\font[size=9pt]{{Precipitation chance (\\%)}}
+    \\cr\\img[src={precip_path}, width=100%lw]
   }}
 }}"""

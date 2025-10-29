@@ -66,6 +66,7 @@ def generate_sil(**kwargs) -> str:
         content_lines.append("    No events scheduled")
         content_lines.append("    \\par")
     else:
+        events.sort(key=lambda event: event.get("start"))
         for event in events:
             event_title = escape_sile(event.get("summary", "(untitled)"))
             location = escape_sile(event.get("location", ""))
