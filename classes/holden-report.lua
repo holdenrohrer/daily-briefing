@@ -4,6 +4,8 @@
 local plain = require("classes.plain")
 dofile("classes/pagebuilder-patch.lua")
 
+
+
 local class = pl.class(plain)
 class._name = "holden-report"
 
@@ -11,8 +13,8 @@ class._name = "holden-report"
 class.defaultFrameset = {
   content = {
     left = "8.3%pw",
-    right = "86%pw",
-    top = "11.6%ph",
+    right = "91.7%pw",
+    top = "15%ph",
     bottom = "top(footnotes)",
   },
   folio = {
@@ -31,7 +33,7 @@ class.defaultFrameset = {
     left = "left(content)",
     right = "right(content)",
     height = "0",
-    bottom = "83.3%ph",
+    bottom = "91.7%ph",
   },
 }
 
@@ -54,29 +56,31 @@ function class:_init (options)
   SILE.scratch.counters = SILE.scratch.counters or {}
   SILE.scratch.counters.folio = SILE.scratch.counters.folio or {}
   SILE.scratch.counters.folio.off = true
+
 end
 
 function class:endPage ()
   -- Finalize sectionbox vertical rules for this page (draw once per page)
-  do
-    local folio = (SILE and SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
-    local st = SILE.scratch and SILE.scratch.__sectionbox_state
-    if st and st[folio] then
-      local optsmap = SILE.scratch.__sectionbox_opts or {}
-      for uid, bs in pairs(st[folio]) do
-        local opts = optsmap[uid] or {}
-        local bw = opts.bw or 1
-        local color = SILE.types.color(opts.color or "#c9b458")
-        if bs.xL and bs.xR and bs.yTop and bs.yBottom and bs.yBottom > bs.yTop then
-          SILE.outputter:pushColor(color)
-          SILE.outputter:drawRule(bs.xL, bs.yTop, bw, (bs.yBottom - bs.yTop))
-          SILE.outputter:drawRule(bs.xR, bs.yTop, bw, (bs.yBottom - bs.yTop))
-          SILE.outputter:popColor()
-        end
-      end
-      st[folio] = nil
-    end
-  end
+  -- sectionbox is currently deprecated
+  --do
+  --  local folio = (SILE and SILE.scratch and SILE.scratch.counters and SILE.scratch.counters.folio and SILE.scratch.counters.folio.value) or 1
+  --  local st = SILE.scratch and SILE.scratch.__sectionbox_state
+  --  if st and st[folio] then
+  --    local optsmap = SILE.scratch.__sectionbox_opts or {}
+  --    for uid, bs in pairs(st[folio]) do
+  --      local opts = optsmap[uid] or {}
+  --      local bw = opts.bw or 1
+  --      local color = SILE.types.color(opts.color or "#c9b458")
+  --      if bs.xL and bs.xR and bs.yTop and bs.yBottom and bs.yBottom > bs.yTop then
+  --        SILE.outputter:pushColor(color)
+  --        SILE.outputter:drawRule(bs.xL, bs.yTop, bw, (bs.yBottom - bs.yTop))
+  --        SILE.outputter:drawRule(bs.xR, bs.yTop, bw, (bs.yBottom - bs.yTop))
+  --        SILE.outputter:popColor()
+  --      end
+  --    end
+  --    st[folio] = nil
+  --  end
+  --end
 
   -- Running header (always, no odd/even switching)
   local rh = SILE.getFrame("runningHead")
@@ -165,9 +169,27 @@ class:registerCommand("vfilll", function (_, _)
     SILE.typesetter:pushVglue(SILE.types.node.vglue(SILE.types.length(0, 1e26, 0)))
 end)
 
+class:registerCommand("vfil", function (_, _)
+    SILE.typesetter:pushVglue(SILE.types.node.vglue(SILE.types.length(0, 1e6, 0)))
+end)
+
 class:registerCommand("vpenalty", function(options, content)
     SILE.typesetter:leaveHmode()
     SILE.call("penalty", {penalty = options.penalty})
 end, "Insert a vertical penalty")
+
+class:registerCommand("skip", function (options, _)
+  -- Everything else here is completely standard, but discardable is the
+  -- default now
+  options.discardable = SU.boolean(options.discardable, true)
+  options.height = SILE.types.length(options.height):absolute()
+  SILE.typesetter:leaveHmode()
+  if options.discardable then
+     SILE.typesetter:pushVglue(options)
+  else
+     SILE.typesetter:pushExplicitVglue(options)
+  end
+end, "Inserts vertical skip. The height options denotes the skip dimension.")
+
 
 return class

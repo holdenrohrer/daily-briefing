@@ -32,18 +32,14 @@ class ComicExtraction(TypedDict):
 
     Keys:
     - url: Source URL (non-empty).
-    - title_text: The comic's title or header text (may be empty if unavailable).
     - images: Ordered list of image URLs (0 or more).
     - extra_text: Any extra descriptive text blocks (0 or more).
-    - hidden_image: Optional "hidden" second comic image (SMBC often has one).
 
     Fails fast inside extraction helpers; callers should catch exceptions per-item.
     """
     url: str
-    title_text: str
     images: List[str]
     extra_text: List[str]
-    hidden_image: Optional[str]
 
 
 def _slugify(s: str) -> str:
@@ -133,16 +129,19 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
     system_prompt = (
         "You are a precise webcomic extraction assistant. Parse the provided HTML for a webcomic page "
         "and return a STRICT JSON object with the following keys:\n"
-        '  - "title_text": string (comic title/header; empty if not found)\n'
         '  - "images": array of strings (absolute image URLs with schema in reading order)\n'
-        '  - "extra_text": array of strings (short descriptive text blocks, in order)\n'
+        '  - "extra_text": Any mouseover text (title= tag) or explanation'
+        ' or news text. Remove any html-coding. Normalize to UTF-8.\n'
         "Rules:\n"
         "- If a higher resolution image is available in srcset, use that instead"
-        "- Only include the main text content specific to this comic. Do not include text which is on every comic page.\n"
-        "- Do NOT include transcript. Do NOT include alt-text.\n"
-        "- ALWAYS include mouseover text. ALWAYS include explanation text.\n"
+        "- Do NOT include transcript. Do NOT include alt-text. Do NOT"
+        " include navigation text. Do NOT include date-posted. Do NOT"
+        " include tags.\n"
+        "- extra_text should be human-readable and include annotations."
+        " For example, ['Title text: this is the comic's title text"
+        " today', 'Explanation: Some people think like this comic suggests"
+        " they do', 'Line two of explanation.' 'News: I'm on a booktour']"
         "- Include multiple images if the comic has panels split across <img> tags.\n"
-        "- If unsure about a hidden second comic, set hidden_image to null.\n"
         "- Output ONLY valid JSON. No markdown fences, no prose.\n"
         "- VERY IMPORTANT: INCLUDE NO TEXT EXCEPT JSON. YOUR RESPONSE WILL FAIL TO PARSE IF IT IS NOT A VALID JSON OBJECT"
     )
@@ -172,7 +171,6 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
     if not isinstance(parsed, dict):
         raise TypeError("Parsed LLM output is not a JSON object")
 
-    title_text = str(parsed.get("title_text") or "")
     images = parsed.get("images") or []
     extra_text = parsed.get("extra_text") or []
     hidden_image = parsed.get("hidden_image", None)
@@ -186,7 +184,6 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
 
     result: ComicExtraction = {
         "url": url,
-        "title_text": title_text,
         "images": list(images),
         "extra_text": list(extra_text),
         "hidden_image": hidden_image if hidden_image is not None else None,
@@ -412,6 +409,8 @@ def _sile_img(url: str) -> str:
     safe = local.replace('"', "%22")
     return f'    \\img[src="{safe}", width={w:.3f}in, height={h:.3f}in]'
 
+def _outersperse(lst, sep):
+    return [sep if i % 2 == 0 else lst[i // 2] for i in range(2 * len(lst) + 1)]
 
 def generate_sil(
     since: datetime | None = None,
@@ -431,25 +430,22 @@ def generate_sil(
     items: List[Dict[str, Any]] = data.get("items", [])
 
     def _render_item_group(source: str, group_items: List[Dict[str, Any]]) -> str:
-        lines: List[str] = [f"    \\vfill\\sectiontitle{{{escape_sile(source)}}}"]
+        lines: List[str] = [f"    \\vfil\\sectiontitle{{{escape_sile(source)}}}"]
         for item in group_items:
             title = escape_sile(str(item.get("title", "(untitled)")))
             link = str(item.get("link") or "")
             try:
                 extraction = _extract_webcomic_cached(link)
                 # Title line
-                lines.append(f"    \\rssItemTitle{{{title}}}")
+                lines.append(f"    \\rssGroupTitle{{{title}}}")
                 lines.append("    \\par")
-                if extraction.get("title_text"):
-                    lines.append(f"    {escape_sile(str(extraction['title_text']))}")
                 # Images
-                for img_url in extraction.get("images", []):
-                    if isinstance(img_url, str) and img_url:
-                        lines.append(_sile_img(img_url))
+                image_includes = [_sile_img(img_url) for img_url in extraction.get("images")]
+                lines.extend(_outersperse(image_includes, "\\vfil"))
                 # Extra text
-                for txt in extraction.get("extra_text", []):
-                    if isinstance(txt, str) and txt.strip():
-                        lines.append(f"    \\rssSubtitle{{{escape_sile(txt)}}}")
+                lines.extend(_outersperse(extraction.get("extra_text"),
+                                          "\\par"))
+                lines.append("    \\skip[height=1em]\\vpenalty[penalty=-5]")
             except Exception as e:
                 # On any failure, emit the fallback message only.
                 lines.append(f"    \\rssItemTitle{{{title} couldn't be parsed}}")

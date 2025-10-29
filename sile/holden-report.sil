@@ -8,9 +8,10 @@
 \use[module=packages.lists]
 \use[module=packages.rules]
 \use[module=packages.image]
+\use[module=packages.verbatim]
 \set[parameter=document.baselineskip, value=12pt]
-\set[parameter=document.parindent, value=0pt]
-\set[parameter=current.parindent, value=0pt]
+\set[parameter=document.parskip, value=3pt plus 3pt]
+\set[parameter=document.parindent, value=20pt]
 
 % Theme wrappers (single source of colors)
 \define[command=Ink]{\color[color=#111111]{\process}}
@@ -25,24 +26,20 @@
 }
 
 \define[command=sectionbox]{
-  \skip[height=.7em]
-  \vfill
-  \par
-  \vpenalty[penalty=-500]
-  \par
-  \hrulefill
+  \par\noindent\hrulefill\break
   \skip[height=.7em]
   \process
+  %\skip[height=1em plus 3in,discardable=true]
+  %\vpenalty[penalty=-500]
+  %\skip[height=0pt plus -3in]
 }
 
 
 \define[command=sectiontitle]{
-  \par\font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
-  \penalty[penalty=100]
-  \par
+  \par\noindent\font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
+  \vpenalty[penalty=100]
   \skip[height=.25em]
-  \penalty[penalty=100]
-  \par
+  \vpenalty[penalty=100]
 }
 
 % Running header: Left title + right-aligned ISO date
@@ -53,8 +50,6 @@
   \Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}
 }
 
-
-
 % Helper: typeset the current page number (folio) safely
 \define[command=hrPageNum]{
   \lua{
@@ -64,8 +59,8 @@
 }
 
 % RSS formatting schema (content/format separation)
-\define[command=rssGroupTitle]{\font[size=12pt]{\Ink{\process}}\par}
-\define[command=rssItemTitle]{\font[size=10pt]{\Ink{\process}}\par}
-\define[command=rssSubtitle]{\Subtle{\font[size=8pt]{\process}}\par}
-\define[command=rssItemSeparator]{\skip[height=.5em]\penalty[penalty=150]}
-\define[command=rssGroupSeparator]{\skip[height=1em]\penalty[penalty=50]}
+\define[command=rssGroupTitle]{\font[size=12pt]{\Ink{\process}}}
+\define[command=rssItemTitle]{\font[size=10pt]{\Ink{\process}}}
+\define[command=rssSubtitle]{\Subtle{\font[size=8pt]{\process}}}
+\define[command=rssItemSeparator]{\skip[height=0em]\penalty[penalty=150]}
+\define[command=rssGroupSeparator]{\skip[height=0em]\penalty[penalty=50]}

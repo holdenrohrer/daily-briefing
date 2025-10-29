@@ -492,21 +492,15 @@ def generate_sil(**kwargs) -> str:
     precip_path = "build/charts/weather_precip.png"
 
     return f"""\\define[command=weathersection]{{
-\\vfill
-\\par
-\\penalty[penalty=-500]
+\\vfil
+\\vpenalty[penalty=-500]
   \\sectionbox{{
     \\sectiontitle{{{title}}}
     \\font[size=9pt]{{Temperature (°C)}}
-    \\par
-    \\img[src={temp_path}, width=100%lw]
-    \\par
-    \\font[size=9pt]{{Humidity (\\%)}}
-    \\par
-    \\img[src={humidity_path}, width=100%lw]
-    \\par
-    \\font[size=9pt]{{Precipitation chance (\\%)}}
-    \\par
-    \\img[src={precip_path}, width=100%lw]
+    \\cr\\noindent\\img[src={temp_path}, width=100%lw]
+    \\cr\\noindent\\font[size=9pt]{{Humidity (\\%)}}
+    \\cr\\noindent\\img[src={humidity_path}, width=100%lw]
+    \\cr\\noindent\\font[size=9pt]{{Precipitation chance (\\%)}}
+    \\cr\\noindent\\img[src={precip_path}, width=100%lw]
   }}
 }}"""

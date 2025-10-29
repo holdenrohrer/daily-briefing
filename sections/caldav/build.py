@@ -84,7 +84,7 @@ def generate_sil(**kwargs) -> str:
             content_lines.append(f"    \\font[weight=600]{{{event_title}}}")
             if calendar:
                 content_lines.append(f"({calendar})")
-            content_lines.append("    \\par")
+            content_lines.append("    \\cr")
 
             if time:
                 content_lines.append(f"    \\Subtle{{{time}}}")

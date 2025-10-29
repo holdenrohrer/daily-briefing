@@ -312,12 +312,12 @@ def generate_sil(
 
         for item in group_items:
             title = escape_sile(str(item.get("title", "(untitled)")))
-            lines.append(f"    \\rssItemTitle{{{title}}}")
+            lines.append(f"    \\rssItemTitle{{{title}}}\cr")
 
             for subtitle in item.get("subtitles", []):
                 if subtitle:
                     escaped_subtitle = escape_sile(str(subtitle))
-                    lines.append(f"    \\rssSubtitle{{{escaped_subtitle}}}")
+                    lines.append(f" \\rssSubtitle{{{escaped_subtitle}}}\cr")
 
             lines.append("    \\rssItemSeparator")
 

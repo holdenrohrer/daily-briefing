@@ -79,6 +79,22 @@
   end
 }
 
+\lua{
+  SILE.typesetter:registerHook("framebreak", function (typesetter, pageNodeList)
+  	-- only when there is content (avoid pages that are only vfill)
+  	if #pageNodeList == 0 then return pageNodeList end
+
+  	-- create a vfill node and mark it appropriately
+  	local vfill = SILE.types.node.vfillglue()
+  	vfill.explicit = false
+  	vfill.discardable = false
+
+  	table.insert(pageNodeList, vfill)
+  	return pageNodeList
+  end)
+}
+
+
 % Section box using typesetter:liner for per-line vertical gold rules.
 % I've commented it out because it does not work aesthetically, and it's
 % broken. But it is a beautiful idea, and I don't see anything like it
