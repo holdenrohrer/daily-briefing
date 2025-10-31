@@ -6,6 +6,7 @@
 - Change the way that sections are configured.
     - Instead of "rss" being listed, then having a list of blogs, just
       do rss_feed("https://pluralistic.net"). a little more high-tech
+    - This would make the previous suggestion much easier.
 
 - Fix Facebook brightdata. Note that this'll have to be kinda asynch :(
 - Youtube API
@@ -14,3 +15,7 @@
 - Add rateyourmusic blog.
 
 - Parallelism/async. I already changed llm_json to async to break stuff.
+
+- Include AI and 
+
+- have llm_json automatically cache calls
