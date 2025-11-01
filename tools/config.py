@@ -20,9 +20,6 @@ SECTIONS: List[str] = [
     "metadata",
 ]
 
-# The canonical parts a comic may include.
-RSS_COMIC_ALLOWED_PARTS: List[str] = ["title_text", "images", "extra_text", "hidden_image"]
-
 RSS_FEEDS: List[str] = [
     "https://feeds.arstechnica.com/arstechnica/index",
     "https://pluralistic.net/feed/",
@@ -34,6 +31,8 @@ RSS_FEEDS: List[str] = [
     "https://fivebooks.com/feed",
     "https://solar.lowtechmagazine.com/index.xml",
     "https://www.mots-surannes.fr/feed/",
+    "https://hackaday.com/feed/"
+    "https://syndication.thedailywtf.com/TheDailyWtf"
 ]
 
 COMIC_FEEDS: List[str] = [
@@ -67,11 +66,29 @@ EMAIL_ACCOUNTS: List[Dict[str, str]] = [
     }
 ]
 
+EMAIL_RULES = [
+    {
+        "condition": lambda m: m['from'] == 'jaynithya123@gmail.com',
+        "display": lm_filter.verbatim_with_images
+    },
+]
+EMAIL_CATEGORIES = [
+    {
+        "looks_like": "Marketing",
+        "display": lm_filter.oneline
+    },
+    {
+        "looks_like": "Personal Communication",
+        "display": lm_filter.verbatim
+    },
+]
+
 # OpenRouter API configuration
 # NOTE: Fill OPENROUTER_API_TOKEN with your actual token. Code asserts non-empty.
 OPENROUTER_API_TOKEN: str = get_key_from_store("openrouter", "apikey")
 OPENROUTER_CREDITS_URL: str = "https://openrouter.ai/api/v1/credits"
 LLM: str = "openrouter/qwen/qwen3-8b"
+LLM_TTL_S: int = 86400
 
 # Comics section caching configuration
 # TTL (in seconds) for caching RSS feed fetches for comics sources.
@@ -86,4 +103,4 @@ COMICS_IMAGE_MAX_WIDTH_IN: float = 5.0
 # Printing configuration
 PRINTER_NAME: str = "holdens_printer"
 PRINT_THRESHOLD_USD: float = 1.00
-PRINTER_OPTIONS: List[str] = ["-o", "sides=two-sided-long-edge"]
+PRINTER_OPTIONS: List[str] = []

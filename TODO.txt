@@ -14,8 +14,4 @@
 
 - Add rateyourmusic blog.
 
-- Parallelism/async. I already changed llm_json to async to break stuff.
-
-- Include AI and 
-
-- have llm_json automatically cache calls
+- Package this so that it can be executed as a systemd service. config.py needs to be in /etc/config.py, /run/${mktemp} for builddir, /var/cache/daily-briefing, cache rotation, move official.json out of cache. probably /var/lib

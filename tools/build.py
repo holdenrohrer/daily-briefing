@@ -18,6 +18,7 @@ import os
 import subprocess
 import sys
 import re
+from PyPDF2 import PdfReader, PdfWriter
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, Callable
@@ -29,7 +30,8 @@ os.chdir(PROJECT_ROOT)
 import importlib
 from types import ModuleType
 from tools import config, util
-
+import notify2
+import time
 
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -337,13 +339,16 @@ def _prompt_yes_no(question: str) -> bool:
     Returns False on empty input or EOF.
     """
     assert isinstance(question, str) and question.strip(), "question must be a non-empty string"
-    try:
-        ans = input(question)
-    except EOFError:
-        return False
-    if not isinstance(ans, str):
-        return False
-    return ans.strip().lower() in ("y", "yes")
+    if sys.stdin.isatty():
+        try:
+            ans = input(question + " [y/N] ")
+        except EOFError:
+            return False
+        if not isinstance(ans, str):
+            return False
+        return ans.strip().lower() in ("y", "yes")
+    else:
+        return _notify2_prompt("Daily Briefing", question)
 
 
 def _invoke_lpr(printer: str, pdf_path: Path, verbose: bool = False) -> int:
@@ -374,6 +379,68 @@ def _invoke_lpr(printer: str, pdf_path: Path, verbose: bool = False) -> int:
     if verbose:
         print(f"[build] Sent to printer '{printer}': {pdf_path}")
     return proc.returncode
+
+def ensure_even_pages(pdf_path: str) -> str:
+    """Ensure an even page count by adding a blank if necessary."""
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    for p in reader.pages:
+        writer.add_page(p)
+    pagect = len(reader.pages)
+    if len(reader.pages) % 2:
+        from PyPDF2 import PageObject
+        writer.add_page(PageObject.create_blank_page(
+            width=reader.pages[0].mediabox.width,
+            height=reader.pages[0].mediabox.height
+        ))
+        pagect += 1
+    out = Path(pdf_path).with_stem(Path(pdf_path).stem + "_even")
+    with open(out, "wb") as f:
+        writer.write(f)
+    return out, pagect
+
+def _notify2_prompt(title: str, message: str) -> bool:
+    """ Could easily be made asynch, but lazy. """
+    notify2.init("Print Confirmation")
+    n = notify2.Notification(title, message, "dialog-information")
+    n.user_choice = None
+
+    def yes_cb(noti, action): noti.user_choice = True
+    def no_cb(noti, action): noti.user_choice = False
+
+    n.add_action("yes", "Yes", yes_cb)
+    n.add_action("no", "No", no_cb)
+    n.show()
+
+    # block forever until user clicks
+    while n.user_choice is None:
+        time.sleep(0.5)
+
+    return n.user_choice
+
+def extract_pages(pdf_path: str, suffix: str, pages: Generator[int, None, None], flip=False) -> str:
+    """
+    Create a new PDF containing only the specified (0-based) pages.
+    Args:
+        pdf_path: Path to the input PDF.
+        suffix: Suffix to append to the output filename.
+        pages: Generator of page indices to extract (0-based).
+        flip: If True, rotate extracted pages 180 degrees.
+    Returns:
+        Path to the newly written PDF.
+    """
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    for i in pages:
+        if 0 <= i < len(reader.pages):
+            page = reader.pages[i]
+            if flip:
+                page.rotate(180)
+            writer.add_page(page)
+    out_path = Path(pdf_path).with_stem(Path(pdf_path).stem + "_" + suffix)
+    with open(out_path, "wb") as f:
+        writer.write(f)
+    return out_path
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -485,6 +552,11 @@ def main(argv: list[str] | None = None) -> int:
     # Second SILE run with updated metadata
     _run_sile(build_main_sil, output_pdf, verbose=bool(args.verbose))
 
+    even_count_pdf, pagect = ensure_even_pages(output_pdf)
+    even_pdf = extract_pages(even_count_pdf, "even", range(0, pagect, 2))
+    odd_pdf = extract_pages(even_count_pdf, "odd", range(pagect-1, 0, -2), flip=True)
+    print(even_count_pdf, pagect, even_pdf, odd_pdf)
+
     # If this is an official build, decide whether to print
     if args.official:
         printer = config.PRINTER_NAME
@@ -495,16 +567,12 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
         else:
-            total_cost = float(cost_info.get("total_cost", 0.0))
-            try:
-                if total_cost < threshold:
-                    _invoke_lpr(printer, output_pdf, verbose=bool(args.verbose))
-                else:
-                    question = f"Cost is ${total_cost:.2f}. Still print? [y/N] "
-                    if _prompt_yes_no(question):
-                        _invoke_lpr(printer, output_pdf, verbose=bool(args.verbose))
-            except Exception as e:
-                print(f"[build] Printing failed: {e}", file=sys.stderr)
+            total_cost = cost_info["total_cost"]
+            question = f"Your daily briefing is ready!\nCost is ${total_cost:.2f}. Still print?"
+            if total_cost < threshold or _prompt_yes_no(question):
+                _invoke_lpr(printer, even_pdf, verbose=bool(args.verbose))
+                if _prompt_yes_no("Pick up the print stack and reinsert into the printer without rotating.\nReady to print backsides?"):
+                    _invoke_lpr(printer, odd_pdf, verbose=bool(args.verbose))
 
     return 0
 

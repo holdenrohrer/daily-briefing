@@ -25,21 +25,21 @@ def _make_key(s: str) -> str:
 def get(key: str, fun: Callable[[], T], ttl: int) -> T:
     """
     Simple write-through cache API: get(key, fun, ttl)
-    
+
     If key is available in cache and fresh (within ttl seconds), return cached value.
     Otherwise, execute fun(), store result in cache, and return it.
-    
+
     Args:
         key: Cache key (will be hashed for filename)
         fun: Function to execute if cache miss or expired
         ttl: Time-to-live in seconds
-        
+
     Returns:
         Cached value or result of fun()
     """
     cache_key = _make_key(key)
     cache_file = _CACHE_ROOT / f"{cache_key}.json"
-    
+
     # Try to read from cache
     if cache_file.exists():
         try:
@@ -51,10 +51,10 @@ def get(key: str, fun: Callable[[], T], ttl: int) -> T:
                 return obj["payload"]
         except Exception:
             pass  # Fall through to execute function
-    
+
     # Cache miss or expired - execute function
     result = fun()
-    
+
     # Store in cache
     _ensure_dir(_CACHE_ROOT)
     data = {
@@ -63,8 +63,55 @@ def get(key: str, fun: Callable[[], T], ttl: int) -> T:
         "ttl": ttl,
     }
     cache_file.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), 
+        json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
         encoding="utf-8"
     )
-    
+
+    return result
+
+async def get_async(key: str, fun: Callable[[], T], ttl: int) -> T:
+    """
+    Simple cache API: async get_async(key, fun, ttl)
+
+    If key is available in cache and fresh (within ttl seconds), return cached value.
+    Otherwise, execute fun(), store result in cache, and return it.
+
+    Args:
+        key: Cache key (will be hashed for filename)
+        fun: Async function to execute if cache miss or expired
+        ttl: Time-to-live in seconds
+
+    Returns:
+        Cached value or result of fun()
+    """
+    cache_key = _make_key(key)
+    cache_file = _CACHE_ROOT / f"{cache_key}.json"
+
+    # Try to read from cache
+    if cache_file.exists():
+        try:
+            raw = cache_file.read_text(encoding="utf-8")
+            obj = json.loads(raw)
+            ts = int(obj.get("ts", 0))
+            now = int(time.time())
+            if now - ts <= ttl:
+                return obj["payload"]
+        except Exception:
+            pass  # Fall through to execute function
+
+    # Cache miss or expired - execute function
+    result = await fun()
+
+    # Store in cache
+    _ensure_dir(_CACHE_ROOT)
+    data = {
+        "payload": result,
+        "ts": int(time.time()),
+        "ttl": ttl,
+    }
+    cache_file.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8"
+    )
+
     return result

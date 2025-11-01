@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional
 
 import requests
 from PIL import Image  # type: ignore
+import tools.cache as cache
 
 
 def escape_sile(text: str) -> str:
@@ -189,12 +190,6 @@ def slugify(s: str) -> str:
     return s or "untitled"
 
 
-def cache_get(key: str, fun: Callable[[], Any], ttl: int) -> Any:
-    """Project-wide write-through cache wrapper."""
-    from tools.cache import get as _cache_get  # Local import to avoid cycles
-
-    return _cache_get(key, fun, ttl)
-
 
 def fetch_html(url: str, timeout: float = 15.0) -> str:
     """
@@ -208,11 +203,15 @@ def fetch_html(url: str, timeout: float = 15.0) -> str:
     assert isinstance(text, str) and text != "", "Fetched empty response body"
     return text
 
+def _ref(text: str):
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
-async def llm_json(
+total_cost = 0
+async def llm(
     *,
     system_prompt: str,
     user_prompt: str,
+    return_json: bool,
     model: Optional[str] = None,
     api_key: Optional[str] = None,
     api_base: str = "https://openrouter.ai/api/v1",
@@ -221,29 +220,44 @@ async def llm_json(
     """
     Call an LLM via OpenRouter (through LiteLLM) and return parsed JSON content.
     """
-    from litellm import completion  # type: ignore
+    from litellm import acompletion
     from tools import config
+    from tools import cache
 
     mdl = model or config.LLM
     token = api_key or config.OPENROUTER_API_TOKEN
     assert isinstance(mdl, str) and mdl.strip(), "LLM model must be configured"
     assert isinstance(token, str) and token.strip(), "OPENROUTER_API_TOKEN must be configured"
 
-    resp = await acompletion(
-        model=mdl,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        api_base=api_base,
-        api_key=token,
-        temperature=temperature,
-        extra_body={"zdr": True},
-        num_retries=5,
-    )
-    content = resp["choices"][0]["message"]["content"]  # type: ignore[index]
-    return json.loads(content)
+    async def _do():
+        global total_cost
+        response_format = {"type": "json_object"} if json else None
+
+        resp = await acompletion(
+            model=mdl,
+            response_format=response_format,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            api_base=api_base,
+            api_key=token,
+            temperature=temperature,
+            extra_body={"zdr": True, "usage": {"include": True}},
+            num_retries=5,
+        )
+
+        cost = resp.usage.cost
+        total_cost += cost
+
+        content = resp["choices"][0]["message"]["content"]
+        if return_json:
+            return json.loads(content)
+        else:
+            return content
+
+
+    return await cache.get_async(f"llm:{_ref(system_prompt)}:{_ref(user_prompt)}:{model}:{json}", _do, config.LLM_TTL_S)
 
 
 def cached_png_for_url(url: str, out_dir: str | Path = "build/images", ttl: Optional[int] = None) -> str:
@@ -278,7 +292,7 @@ def cached_png_for_url(url: str, out_dir: str | Path = "build/images", ttl: Opti
 
     # If the cached path points to a file that was removed, force a refresh
     def _safe_get() -> str:
-        p = cache_get(f"img:png:{url}", _do, effective_ttl)
+        p = cache.get(f"img:png:{url}", _do, effective_ttl)
         if not Path(p).exists():
             return _do()
         return p

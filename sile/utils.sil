@@ -80,17 +80,18 @@
 }
 
 \lua{
+  -- raggedbottom
   SILE.typesetter:registerHook("framebreak", function (typesetter, pageNodeList)
-  	-- only when there is content (avoid pages that are only vfill)
-  	if #pageNodeList == 0 then return pageNodeList end
+    -- only when there is content (avoid pages that are only vfill)
+    if #pageNodeList == 0 then return pageNodeList end
 
-  	-- create a vfill node and mark it appropriately
-  	local vfill = SILE.types.node.vfillglue()
-  	vfill.explicit = false
-  	vfill.discardable = false
+    -- create a vfill node and mark it appropriately
+    local vfill = SILE.types.node.vfillglue()
+    vfill.explicit = false
+    vfill.discardable = false
 
-  	table.insert(pageNodeList, vfill)
-  	return pageNodeList
+    table.insert(pageNodeList, vfill)
+    return pageNodeList
   end)
 }
 

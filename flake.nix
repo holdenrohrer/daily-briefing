@@ -20,6 +20,8 @@
           imapclient
           litellm
           tenacity
+          notify2
+          pypdf2
         ]);
         jbMonoTtf = pkgs.runCommand "jetbrains-mono-ttf-only" {} ''
           set -eu

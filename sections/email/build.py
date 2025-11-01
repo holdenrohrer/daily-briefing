@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 from imapclient import IMAPClient
 
-from tools.util import escape_sile, get_official_cutoff_time, llm_json
+from tools.util import escape_sile, get_official_cutoff_time, llm
 from tools.config import EMAIL_ACCOUNTS
 
 import email
@@ -15,6 +15,8 @@ from email.parser import BytesParser
 from html.parser import HTMLParser
 from html import unescape
 import re
+
+import asyncio
 
 class HTMLStripper(HTMLParser):
     """Strips HTML tags and converts to plain text."""
@@ -154,12 +156,8 @@ def _email_summarize(context: str, body: str) -> List[str]:
         "DO NOT INCLUDE EXTRANEOUS FACTS ABOUT THE EMAIL LIKE UNSUBSCRIBE LINKS.\n"
         "Quotes, personal messages, etc. should be conveyed verbatim. Use fancy quotation marks to indicate you are speaking verbatim\n"
         "Note: I already have access to context '{context}'. Do not duplicate the context.\n",
-        "\n"
-        "You MUST reply with JSON. Any other response is invalid.\n",
-        "Fields:\n"
-        "- extract: List of plain-text strings (no markdown, no links, no html). Each string will be displayed as a paragraph."
         ))
-    return llm_json(system_prompt=prompt, user_prompt=body)['extract']
+    return llm(system_prompt=prompt, user_prompt=body, return_json=False)
 
 def fetch_emails() -> List[Dict[str, Any]]:
     """
@@ -190,7 +188,7 @@ def fetch_emails() -> List[Dict[str, Any]]:
                 # Fetch email data
                 response = server.fetch(messages, ['ENVELOPE', 'BODY.PEEK[TEXT]'])
 
-                for msgid, data in response.items():
+                async def extract_email(msgid, data):
                     envelope = data[b'ENVELOPE']
                     body_data = data.get(b'BODY[TEXT]', b'')
 
@@ -203,20 +201,24 @@ def fetch_emails() -> List[Dict[str, Any]]:
                     if email_date and email_date.tzinfo is None:
                         email_date = email_date.replace(tzinfo=timezone.utc)
                     if email_date.astimezone(timezone.utc) < cutoff_time.astimezone(timezone.utc):
-                        continue
+                        return
 
                     # Limit body length to avoid overwhelming output
                     context = f'{{"subject": {subject}, "from": {from_addr}, "received": {email_date}}}'
                     body = parse_email_to_text(body_data)
-                    body = _email_summarize(context, body[:60000])
+                    body = await _email_summarize(context, body[:50000])
 
-                    all_emails.append({
+                    return {
                         'subject': subject,
                         'from': from_addr,
                         'date': email_date,
                         'body': body,
                         'account': f"{imap_user}@{imap_server}"
-                    })
+                    }
+                async def _get_all_emails():
+                    return await asyncio.gather(*[extract_email(msgid, data) for msgid, data in response.items()])
+                all_emails = asyncio.run(_get_all_emails())
+                all_emails = [email for email in all_emails if email is not None]
 
     # Sort by date, most recent first
     all_emails.sort(key=lambda x: x['date'] if x['date'] else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
@@ -266,9 +268,9 @@ def generate_sil(**kwargs) -> str:
 
 
             if body:
-                escaped_body = [escape_sile(line) for line in body]
+                escaped_body = escape_sile(body)
                 content_lines.append("\\font[size=10pt]{\\set[parameter=document.baselineskip, value=10pt]")
-                content_lines.extend(_intersperse(escaped_body, '\\par'))
+                content_lines.append(escaped_body)
                 content_lines.append("}    \\par")
 
             content_lines.append("    \\smallskip")

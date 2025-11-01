@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
+import asyncio
 
 import feedparser  # type: ignore
 
 from tools import config
-from tools.util import escape_sile, slugify, cache_get, fetch_html, llm_json, sile_img_from_url
+from tools.util import escape_sile, slugify, fetch_html, llm, sile_img_from_url
+import tools.cache as cache
 
 
 class ComicExtraction(TypedDict):
@@ -59,7 +61,7 @@ def _condense_html(html: str, max_chars: int = 50000) -> str:
     return cleaned[:max_chars]
 
 
-def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> ComicExtraction:
+async def _llm_extract_comic(url: str, html: str) -> ComicExtraction:
     assert isinstance(url, str) and url != "", "url must be a non-empty str"
     assert isinstance(html, str) and html != "", "html must be a non-empty str"
 
@@ -81,7 +83,7 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
     condensed = _condense_html(html)
     user_prompt = f"URL: {url}\nHTML:\n{condensed}"
 
-    parsed = llm_json(system_prompt=system_prompt, user_prompt=user_prompt, model=model)
+    parsed = await llm(system_prompt=system_prompt, user_prompt=user_prompt, return_json=True)
 
     if not isinstance(parsed, dict):
         raise TypeError("Parsed LLM output is not a JSON object")
@@ -97,13 +99,13 @@ def _llm_extract_comic(url: str, html: str, model: Optional[str] = None) -> Comi
     return {"images": list(images), "extra_text": list(extra_text)}
 
 
-def extract_webcomic_cached(url: str) -> ComicExtraction:
-    def _do() -> ComicExtraction:
+async def extract_webcomic_cached(url: str) -> ComicExtraction:
+    async def _do() -> ComicExtraction:
         html = fetch_html(url)
-        return _llm_extract_comic(url=url, html=html, model=config.LLM)
+        return await _llm_extract_comic(url=url, html=html)
 
     ttl = config.COMICS_EXTRACTION_TTL_S
-    return cache_get(f"comics:extract:{url}", _do, ttl)
+    return await cache.get_async(f"comics:extract:{url}", _do, ttl)
 
 
 def fetch_comics(
@@ -195,7 +197,7 @@ def fetch_comics(
                 )
             return items
 
-        items = cache_get(f"comics:feed:{url}", fetch_and_parse_feed, ttl)
+        items = cache.get(f"comics:feed:{url}", fetch_and_parse_feed, ttl)
 
         if since is not None:
             filtered_items: List[Dict[str, Any]] = []
@@ -256,35 +258,39 @@ def generate_sil(
 
     def _render_item_group(source: str, group_items: List[Dict[str, Any]]) -> str:
         lines: List[str] = [f"    \\vfil\\sectiontitle{{{escape_sile(source)}}}"]
+        extractions = []
+
         for item in group_items:
             title = escape_sile(str(item.get("title", "(untitled)")))
             link = str(item.get("link") or "")
-            try:
-                extraction = extract_webcomic_cached(link)
-                # Title line
-                lines.append(f"    \\rssGroupTitle{{{title}}}")
-                lines.append("    \\par")
-                # Images
-                max_h = config.COMICS_IMAGE_MAX_HEIGHT_IN
-                max_w = config.COMICS_IMAGE_MAX_WIDTH_IN
-                img_ttl = config.COMICS_IMAGE_TTL_S
-                image_includes = [
-                    sile_img_from_url(
-                        img_url,
-                        max_width_in=max_w,
-                        max_height_in=max_h,
-                        out_dir="build/comics_images",
-                        ttl=img_ttl,
-                    )
-                    for img_url in extraction.get("images", [])
-                ]
-                lines.extend(_outersperse(image_includes, "\\vfil\\vpenalty[penalty=-5]"))
-                # Extra text
-                lines.extend(_outersperse(extraction.get("extra_text", []), "\\par"))
-                lines.append("    \\skip[height=1em]\\vpenalty[penalty=-5]")
-            except Exception:
-                # On any failure, emit a fallback message only and continue.
-                lines.append(f"    \\rssItemTitle{{{title} couldn't be parsed}}")
+            extraction = extract_webcomic_cached(link)
+            extractions.append(extraction)
+
+        async def gather():
+            return await asyncio.gather(*extractions)
+
+        for extraction in asyncio.run(gather()):
+            # Title line
+            lines.append(f"    \\rssGroupTitle{{{title}}}")
+            lines.append("    \\par")
+            # Images
+            max_h = config.COMICS_IMAGE_MAX_HEIGHT_IN
+            max_w = config.COMICS_IMAGE_MAX_WIDTH_IN
+            img_ttl = config.COMICS_IMAGE_TTL_S
+            image_includes = [
+                sile_img_from_url(
+                    img_url,
+                    max_width_in=max_w,
+                    max_height_in=max_h,
+                    out_dir="build/comics_images",
+                    ttl=img_ttl,
+                )
+                for img_url in extraction.get("images", [])
+            ]
+            lines.extend(_outersperse(image_includes, "\\vfil\\vpenalty[penalty=-5]"))
+            # Extra text
+            lines.extend(_outersperse(extraction.get("extra_text", []), "\\par"))
+            lines.append("    \\skip[height=1em]\\vpenalty[penalty=-5]")
 
             # Separator between items
             lines.append("    \\rssItemSeparator")
