@@ -4,11 +4,13 @@ import ssl
 import urllib.parse
 import urllib.request
 import json
+import math
 import matplotlib.dates as mdates
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.collections import LineCollection
 from matplotlib import cm, colors as mcolors
+import matplotlib.ticker as mticker
 import numpy as np
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -230,76 +232,60 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
             dt = datetime.fromisoformat(t_iso)
             dts.append(dt)
 
-        # Apply y-limits if requested (e.g., for % series)
+        # Normalize arrays
+        xs = mdates.date2num(dts)
+        y = np.asarray(values, dtype=float)
+        if y.size == 0:
+            return
+
+        # Determine y-axis limits
         if ylim is not None:
-            ax.set_ylim(*ylim)
-
-        base_val = ylim[0] if ylim is not None else (min(values) if values else 0.0)
-
-        if gradient:
-            # Temperature: color by value (blue @<=10 → red @>=26)
-            xs = mdates.date2num(dts)
-            y = np.asarray(values, dtype=float)
-            if y.size == 0:
-                return
-            # Build colored line segments
-            pts = np.array([xs, y]).T.reshape(-1, 1, 2)
-            segments = np.concatenate([pts[:-1], pts[1:]], axis=1)
-            norm = mcolors.Normalize(vmin=10.0, vmax=26.0)
-            cmap = cm.get_cmap("coolwarm")
-            lc = LineCollection(segments, cmap=cmap, norm=norm, linewidth=2, zorder=2)
-            mids = (y[:-1] + y[1:]) / 2.0
-            lc.set_array(mids)
-            ax.add_collection(lc)
-
-            # Tight x bounds, no LR padding
-            ax.set_xlim(mdates.num2date(xs.min()), mdates.num2date(xs.max()))
-            ax.set_xmargin(0)
-            ax.margins(x=0)
-
-            # Ensure reasonable y-bounds if not given
+            y_lo, y_hi = float(ylim[0]), float(ylim[1])
+        else:
             ymin = float(np.min(y))
             ymax = float(np.max(y))
             if ymin == ymax:
                 ymin -= 0.5
                 ymax += 0.5
-            # Snap temperature axis to "nice" rounded bounds and limit tick count to <= 6 with integer labels.
-            import math
-            y0_raw = ymin
-            y1_raw = ymax
             pad = 0.1
-            y0 = math.floor((y0_raw - pad) * 2) / 2.0
-            y1 = math.ceil((y1_raw + pad) * 2) / 2.0
-            if y1 <= y0:
-                y1 = y0 + 1.0
-            # Choose an integer tick step so that there are at most 6 ticks.
-            import matplotlib.ticker as mticker
-            # Candidate integer steps
-            candidates = [1, 2, 3, 5, 10]
-            chosen = 1
-            for step in candidates:
-                # number of ticks if we start from ceil(y0) to floor(y1) with this step
-                lo = math.ceil(y0)
-                hi = math.floor(y1)
-                if hi < lo:
-                    hi = lo
-                count = ((hi - lo) // step) + 1
-                if count <= 6:
-                    chosen = step
-                    break
-            # Expand limits to integers to align ticks nicely
+            y0 = math.floor((ymin - pad) * 2) / 2.0
+            y1 = math.ceil((ymax + pad) * 2) / 2.0
             y_lo = math.floor(y0)
             y_hi = math.ceil(y1)
             if y_hi <= y_lo:
-                y_hi = y_lo + chosen
-            ax.set_ylim(y_lo, y_hi)
-            # Locator: integer multiples with chosen step
-            ax.yaxis.set_major_locator(mticker.MultipleLocator(base=float(chosen)))
-            # Formatter: integer labels
-            ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%d"))
-            ax.yaxis.set_minor_locator(mticker.NullLocator())
+                y_hi = y_lo + 1.0
 
-            base_val = y_lo
+        # Choose an integer tick step so that there are at most 6 ticks.
+        lo_int = math.ceil(y_lo)
+        hi_int = math.floor(y_hi)
+        if hi_int < lo_int:
+            hi_int = lo_int
+        candidates = [1, 2, 3, 5, 10, 20]
+        chosen = 1
+        for step in candidates:
+            count = ((hi_int - lo_int) // step) + 1
+            if count <= 6:
+                chosen = step
+                break
+
+        # Apply axis settings
+        ax.set_ylim(y_lo, y_hi)
+        ax.yaxis.set_major_locator(mticker.MultipleLocator(base=float(chosen)))
+        ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%d"))
+        ax.yaxis.set_minor_locator(mticker.NullLocator())
+
+        base_val = y_lo if ylim is None else float(ylim[0])
+
+        if gradient:
+            # Colored line segments by value (blue @<=10 → red @>=26)
+            norm = mcolors.Normalize(vmin=10.0, vmax=26.0)
+            cmap = cm.get_cmap("coolwarm")
+            pts = np.array([xs, y]).T.reshape(-1, 1, 2)
+            segments = np.concatenate([pts[:-1], pts[1:]], axis=1)
+            lc = LineCollection(segments, cmap=cmap, norm=norm, linewidth=2, zorder=2)
+            mids = (y[:-1] + y[1:]) / 2.0
+            lc.set_array(mids)
+            ax.add_collection(lc)
 
             # Gradient under-fill: per-segment fill with lighter color
             for i in range(len(xs) - 1):
@@ -312,19 +298,17 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
                     facecolor=c,
                     alpha=fill_alpha,
                     linewidth=0,
-                    zorder=2,
+                    zorder=1,
                 )
-
         else:
             # Simple colored line + same-color lighter fill
-            ax.plot(dts, values, color=(stroke_color or color), linewidth=2, zorder=1)
-            base_val = ax.get_ylim()[0]
-            ax.fill_between(dts, values, base_val, facecolor=color, alpha=fill_alpha, linewidth=0, zorder=2)
-            # Tight x bounds, no LR padding
-            ax.set_xlim(min(dts), max(dts))
-            ax.set_xmargin(0)
-            ax.set_ymargin(0)
-            ax.margins(x=0)
+            ax.plot(dts, values, color=(stroke_color or color), linewidth=2, zorder=2)
+            ax.fill_between(dts, values, base_val, facecolor=color, alpha=fill_alpha, linewidth=0, zorder=1)
+
+        # Tight x bounds, no LR padding
+        ax.set_xlim(mdates.num2date(xs.min()), mdates.num2date(xs.max()))
+        ax.set_xmargin(0)
+        ax.margins(x=0)
 
         # Hourly ticks and labels
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
