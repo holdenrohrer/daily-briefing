@@ -13,7 +13,7 @@ import numpy as np
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from tools import config
 
 
@@ -26,6 +26,8 @@ class GraphSpec:
     color: str               # hex color for line/fill
     ylim: tuple[float, float] | None = None
     gradient: bool = False
+    alpha: float | None = None     # fill alpha; defaults to 0.2 if None
+    stroke: str | None = None      # optional stroke color override for the line
 
 
 # Single-source-of-truth for all graphs we render.
@@ -34,8 +36,8 @@ GRAPHS: List[GraphSpec] = [
     GraphSpec("hum", "relative_humidity_2m", "humidity", "Humidity (%)", "#000000", (0, 100), False),
     GraphSpec("precip", "precipitation_probability", "precip", "Precipitation chance (%)", "#6baed6", (0, 100), False),
     GraphSpec("wind", "wind_speed_10m", "wind", "Wind (10m) (km/h)", "#2ca02c", None, False),
-    GraphSpec("clouds", "cloud_cover", "clouds", "Cloud cover (%)", "#f2f2f2", (0, 100), False),
-    GraphSpec("pressure", "surface_pressure", "pressure", "Surface pressure (hPa)", "#8c564b", None, False),
+    GraphSpec("clouds", "cloud_cover", "clouds", "Cloud cover (%)", "#f2f2f2", (0, 100), False, alpha=0.6, stroke="#bfbfbf"),
+    GraphSpec("pressure", "surface_pressure", "pressure", "Surface pressure (hPa)", "#8c564b", None, False, alpha=0.3),
 ]
 
 
@@ -208,6 +210,8 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
         color: str,
         ylim: tuple[float, float] | None = None,
         gradient: bool = False,
+        fill_alpha: float = 0.2,
+        stroke_color: str | None = None,
     ) -> None:
         fig = Figure(figsize=(6.4, 2.0), dpi=600)
         FigureCanvasAgg(fig)
@@ -306,16 +310,16 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
                     [y[i], y[i + 1]],
                     [base_val, base_val],
                     facecolor=c,
-                    alpha=0.2,
+                    alpha=fill_alpha,
                     linewidth=0,
                     zorder=1,
                 )
 
         else:
             # Simple colored line + same-color lighter fill
-            ax.plot(dts, values, color=color, linewidth=2, zorder=2)
+            ax.plot(dts, values, color=(stroke_color or color), linewidth=2, zorder=2)
             base_val = ax.get_ylim()[0]
-            ax.fill_between(dts, values, base_val, facecolor=color, alpha=0.2, linewidth=0, zorder=1)
+            ax.fill_between(dts, values, base_val, facecolor=color, alpha=fill_alpha, linewidth=0, zorder=1)
             # Tight x bounds, no LR padding
             ax.set_xlim(min(dts), max(dts))
             ax.set_xmargin(0)
@@ -340,6 +344,8 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
             gs.color,
             ylim=gs.ylim,
             gradient=gs.gradient,
+            fill_alpha=(gs.alpha if gs.alpha is not None else 0.2),
+            stroke_color=gs.stroke,
         )
 
     return {
