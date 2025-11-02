@@ -50,14 +50,10 @@ def _safe_datetime(date_str: str) -> datetime:
     """
     if not date_str:
         return datetime.now().astimezone()
-    try:
-        dt = parsedate_to_datetime(date_str)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone()
-    except Exception:
-        # Fall back to current time if parsing fails
-        return datetime.now().astimezone()
+    dt = parsedate_to_datetime(date_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone()
 
 
 def _truncate_words(s: str, limit: int) -> str:
@@ -298,16 +294,3 @@ def generate_sil(
     {content}
   }}
 }}"""
-
-
-if __name__ == "__main__":
-    """Generate build/rss.sil when run directly."""
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from tools import config
-
-    output_path = Path("build/rss.sil")
-    output_path.parent.mkdir(exist_ok=True)
-
-    sil_content = generate_sil(feeds=config.RSS_FEEDS)
-    output_path.write_text(sil_content, encoding="utf-8")
-    print(f"Generated {output_path}")
