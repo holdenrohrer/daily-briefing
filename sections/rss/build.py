@@ -11,7 +11,6 @@ from html import unescape
 from itertools import groupby
 from pathlib import Path
 from typing import Any, Dict, List
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
@@ -142,114 +141,71 @@ def fetch_rss(
     for url in feeds:
         def fetch_and_parse_feed():
             items = []
-            try:
-                raw = _fetch_url(url, timeout=10.0)
-                parsed_items: List[Dict[str, Any]] = []
+            raw = _fetch_url(url, timeout=10.0)
+            parsed_items: List[Dict[str, Any]] = []
 
-                d = feedparser.parse(raw)
-                source_host = urlparse(url).netloc
-                source_title = (getattr(d, "feed", {}) or {}).get("title") or source_host
-                source_slug = _slugify(source_title or source_host)
-                is_pluralistic = is_pluralistic_host(source_host)
-                entries = list(getattr(d, "entries", []) or [])
-                if entries:
-                    for entry in entries:
-                        title = unescape((entry.get("title") or "(untitled)")).strip()
-                        link = entry.get("link") or entry.get("id") or url
-                        if entry.get("published_parsed"):
-                            published = datetime.fromtimestamp(
-                                calendar.timegm(entry["published_parsed"]),
-                                tz=timezone.utc,
-                            ).isoformat()
-                        elif entry.get("updated_parsed"):
-                            published = datetime.fromtimestamp(
-                                calendar.timegm(entry["updated_parsed"]),
-                                tz=timezone.utc,
-                            ).isoformat()
-                        else:
-                            published = _safe_iso(entry.get("published") or entry.get("updated") or "")
-                        summary_raw = unescape(entry.get("summary") or entry.get("description") or "")
-                        # Strip simple HTML tags and collapse whitespace before truncation
-                        summary_text = re.sub(r"<[^>]+>", " ", summary_raw)
-                        summary_text = re.sub(r"\s+", " ", summary_text).strip()
-                        summary = _truncate_words(summary_text, 100)
+            d = feedparser.parse(raw)
+            source_host = urlparse(url).netloc
+            source_title = (getattr(d, "feed", {}) or {}).get("title") or source_host
+            source_slug = _slugify(source_title or source_host)
+            is_pluralistic = is_pluralistic_host(source_host)
+            entries = list(getattr(d, "entries", []) or [])
+            if entries:
+                for entry in entries:
+                    title = unescape((entry.get("title") or "(untitled)")).strip()
+                    link = entry.get("link") or entry.get("id") or url
+                    if entry.get("published_parsed"):
+                        published = datetime.fromtimestamp(
+                            calendar.timegm(entry["published_parsed"]),
+                            tz=timezone.utc,
+                        ).isoformat()
+                    elif entry.get("updated_parsed"):
+                        published = datetime.fromtimestamp(
+                            calendar.timegm(entry["updated_parsed"]),
+                            tz=timezone.utc,
+                        ).isoformat()
+                    else:
+                        published = _safe_iso(entry.get("published") or entry.get("updated") or "")
+                    summary_raw = unescape(entry.get("summary") or entry.get("description") or "")
+                    # Strip simple HTML tags and collapse whitespace before truncation
+                    summary_text = re.sub(r"<[^>]+>", " ", summary_raw)
+                    summary_text = re.sub(r"\s+", " ", summary_text).strip()
+                    summary = _truncate_words(summary_text, 100)
 
-                        # Build subtitles list:
-                        # - For pluralistic: use ToC items (if any)
-                        # - For others: use the truncated summary
-                        # In all cases, append a friendly published timestamp.
-                        published_note = _format_published_for_subtitle(published)
-                        subtitles: List[str] = []
-                        content_html = None
-                        toc_items: List[str] = []
-                        if is_pluralistic:
-                            content_html, toc_items = extract_content_and_toc(entry)
-                            subtitles = list(toc_items) if toc_items else []
-                        else:
-                            if summary:
-                                subtitles = [summary]
-                        subtitles.append(published_note)
+                    # Build subtitles list:
+                    # - For pluralistic: use ToC items (if any)
+                    # - For others: use the truncated summary
+                    # In all cases, append a friendly published timestamp.
+                    published_note = _format_published_for_subtitle(published)
+                    subtitles: List[str] = []
+                    content_html = None
+                    toc_items: List[str] = []
+                    if is_pluralistic:
+                        content_html, toc_items = extract_content_and_toc(entry)
+                        subtitles = list(toc_items) if toc_items else []
+                    else:
+                        if summary:
+                            subtitles = [summary]
+                    subtitles.append(published_note)
 
-                        item = {
-                            "title": title or "(untitled)",
-                            "link": link,
-                            "source": source_title,
-                            "source_slug": source_slug,
-                            "source_host": source_host,
-                            "slug": _slugify(title),
-                            "published": published,
-                            "summary": summary,
-                            "subtitles": subtitles,
-                        }
-                        if content_html:
-                            item["content"] = content_html
-                        if toc_items:
-                            item["toc"] = toc_items
-                        parsed_items.append(item)
-
-                items = parsed_items
-            except (HTTPError, URLError) as e:
-                host = urlparse(url).netloc
-                items.append(
-                    {
-                        "title": "Error fetching feed",
-                        "link": url,
-                        "source": host,
-                        "source_slug": _slugify(host),
-                        "source_host": host,
-                        "slug": "error-fetching-feed",
-                        "published": _iso_now(),
-                        "summary": f"{e.__class__.__name__}: {e.reason if hasattr(e, 'reason') else str(e)}",
+                    item = {
+                        "title": title or "(untitled)",
+                        "link": link,
+                        "source": source_title,
+                        "source_slug": source_slug,
+                        "source_host": source_host,
+                        "slug": _slugify(title),
+                        "published": published,
+                        "summary": summary,
+                        "subtitles": subtitles,
                     }
-                )
-            except ET.ParseError as e:
-                host = urlparse(url).netloc
-                items.append(
-                    {
-                        "title": "Error parsing feed XML",
-                        "link": url,
-                        "source": host,
-                        "source_slug": _slugify(host),
-                        "source_host": host,
-                        "slug": "error-parsing-feed",
-                        "published": _iso_now(),
-                        "summary": str(e),
-                    }
-                )
-            except Exception as e:
-                host = urlparse(url).netloc
-                items.append(
-                    {
-                        "title": "Unexpected error fetching feed",
-                        "link": url,
-                        "source": host,
-                        "source_slug": _slugify(host),
-                        "source_host": host,
-                        "slug": "unexpected-error",
-                        "published": _iso_now(),
-                        "summary": str(e),
-                    }
-                )
+                    if content_html:
+                        item["content"] = content_html
+                    if toc_items:
+                        item["toc"] = toc_items
+                    parsed_items.append(item)
+
+            items = parsed_items
             return items
 
         items = cache.get(f"rss:{url}", fetch_and_parse_feed, ttl)
@@ -312,12 +268,12 @@ def generate_sil(
 
         for item in group_items:
             title = escape_sile(str(item.get("title", "(untitled)")))
-            lines.append(f"    \\rssItemTitle{{{title}}}\cr")
+            lines.append(f"    \\rssItemTitle{{{title}}}\\cr")
 
             for subtitle in item.get("subtitles", []):
                 if subtitle:
                     escaped_subtitle = escape_sile(str(subtitle))
-                    lines.append(f" \\rssSubtitle{{{escaped_subtitle}}}\cr")
+                    lines.append(f" \\rssSubtitle{{{escaped_subtitle}}}\\cr")
 
             lines.append("    \\rssItemSeparator")
 
