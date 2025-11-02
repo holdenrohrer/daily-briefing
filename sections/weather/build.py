@@ -178,12 +178,6 @@ def _extract_series(payload: Dict[str, Any]) -> Tuple[List[str], Dict[str, List[
     return times_out, series_out
 
 
-# Legacy helpers removed; plotting now uses matplotlib directly.
-
-
-# Legacy helpers removed; plotting now uses matplotlib directly.
-
-
 def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     Render PNG charts for the next ~24 hours of the series declared in GRAPHS.
@@ -320,6 +314,7 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
         else:
             # Simple colored line + same-color lighter fill
             ax.plot(dts, values, color=color, linewidth=2, zorder=2)
+            base_val = ax.get_ylim()[0]
             ax.fill_between(dts, values, base_val, facecolor=color, alpha=0.2, linewidth=0, zorder=1)
             # Tight x bounds, no LR padding
             ax.set_xlim(min(dts), max(dts))
