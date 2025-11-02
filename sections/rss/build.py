@@ -46,11 +46,26 @@ def _ensure_local(dt: datetime | None) -> datetime | None:
 def _safe_datetime(date_str: str) -> datetime:
     """
     Parse a date string into a timezone-aware datetime in the local timezone.
-    Falls back to current local time if parsing fails.
+
+    Accepts ISO-8601/RFC 3339 and RFC 2822 formats.
+    Raises ValueError if the input is empty or cannot be parsed.
     """
-    if not date_str:
-        return datetime.now().astimezone()
-    dt = parsedate_to_datetime(date_str)
+    s = (date_str or "").strip()
+    if not s:
+        raise ValueError("date_str must be a non-empty string")
+    # Try ISO-8601 / RFC 3339 first
+    try:
+        iso = s[:-1] + "+00:00" if s.endswith("Z") else s
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone()
+    except Exception:
+        pass
+    # Fallback to RFC 2822 parsing
+    dt = parsedate_to_datetime(s)
+    if dt is None:
+        raise ValueError(f"Unparseable date string: {s!r}")
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone()
@@ -123,8 +138,8 @@ def fetch_rss(
     - Uses 'feedparser' to parse feeds.
     - If 'feeds' is None or empty, defaults are taken from $RSS_FEEDS (comma-separated)
       or a built-in set of popular feeds.
-    - If 'since' is provided, only include items with published >= since (local tz; both must be timezone-aware).
-      The response meta will include 'cutoff_iso' and 'official'.
+    - If 'since' is provided, only include items with published >= since (both must be timezone-aware).
+      The response meta will include 'cutoff' and 'official'.
     """
     ttl = int(ttl_s if ttl_s is not None else int(os.getenv("RSS_TTL", "1800")))
 
@@ -160,6 +175,7 @@ def fetch_rss(
                         ).astimezone()
                     else:
                         published = _safe_datetime(entry.get("published") or entry.get("updated") or "")
+                    assert isinstance(published, datetime) and published.tzinfo is not None, "published must be a timezone-aware datetime"
                     summary_raw = unescape(entry.get("summary") or entry.get("description") or "")
                     # Strip simple HTML tags and collapse whitespace before truncation
                     summary_text = re.sub(r"<[^>]+>", " ", summary_raw)
@@ -203,19 +219,16 @@ def fetch_rss(
             return items
 
         items = cache.get(f"rss:{url}", fetch_and_parse_feed, ttl)
-        # Apply 'since' filtering and enforce per-feed limit after filtering
+        # Apply 'since' filtering (timezone-aware comparison)
         if since is not None:
             assert isinstance(since, datetime), "since must be a datetime"
-            since_local = _ensure_local(since)
-            assert since_local is not None and since_local.tzinfo is not None, "since must be timezone-aware"
-            filtered_items: List[Dict[str, Any]] = []
-            for it in items:
-                pub_dt = it.get("published")
-                if isinstance(pub_dt, datetime):
-                    pub_dt_local = _ensure_local(pub_dt)
-                    if pub_dt_local is not None and pub_dt_local >= since_local:
-                        filtered_items.append(it)
-            items = filtered_items
+            assert since.tzinfo is not None, "since must be timezone-aware"
+            items = [
+                it for it in items
+                if isinstance(it.get("published"), datetime)
+                and it["published"].tzinfo is not None
+                and it["published"] >= since
+            ]
 
         all_items.extend(items)
 
@@ -237,7 +250,8 @@ def fetch_rss(
     }
     if since is not None:
         assert isinstance(since, datetime), "since must be a datetime"
-        meta["cutoff"] = _ensure_local(since)
+        assert since.tzinfo is not None, "since must be timezone-aware"
+        meta["cutoff"] = since
     if official:
         meta["official"] = True
 
