@@ -13,19 +13,30 @@ import numpy as np
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 from tools import config
 
 
-@dataclass
-class HourPoint:
-    time: str
-    temperature_c: float
-    humidity_pct: float
-    precip_pct: float
-    wind_kph: float
-    cloud_pct: float
-    pressure_hpa: float
+@dataclass(frozen=True)
+class GraphSpec:
+    key: str                 # internal key for series dict
+    om_key: str              # Open-Meteo 'hourly' field name
+    suffix: str              # filename suffix
+    label: str               # human label for SILE
+    color: str               # hex color for line/fill
+    ylim: tuple[float, float] | None = None
+    gradient: bool = False
+
+
+# Single-source-of-truth for all graphs we render.
+GRAPHS: List[GraphSpec] = [
+    GraphSpec("temp", "temperature_2m", "temp", "Temperature (°C)", "#d62728", None, True),
+    GraphSpec("hum", "relative_humidity_2m", "humidity", "Humidity (%)", "#000000", (0, 100), False),
+    GraphSpec("precip", "precipitation_probability", "precip", "Precipitation chance (%)", "#6baed6", (0, 100), False),
+    GraphSpec("wind", "wind_speed_10m", "wind", "Wind (10m) (km/h)", "#2ca02c", None, False),
+    GraphSpec("clouds", "cloud_cover", "clouds", "Cloud cover (%)", "#f2f2f2", (0, 100), False),
+    GraphSpec("pressure", "surface_pressure", "pressure", "Surface pressure (hPa)", "#8c564b", None, False),
+]
 
 
 def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
@@ -39,16 +50,7 @@ def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
     params = {
         "latitude": f"{lat:.5f}",
         "longitude": f"{lon:.5f}",
-        "hourly": ",".join(
-            [
-                "temperature_2m",
-                "relative_humidity_2m",
-                "precipitation_probability",
-                "wind_speed_10m",
-                "cloud_cover",
-                "surface_pressure",
-            ]
-        ),
+        "hourly": ",".join(list(dict.fromkeys(gs.om_key for gs in GRAPHS))),
         "windspeed_unit": "kmh",
         "forecast_days": "1",
         "timezone": "auto",
@@ -149,85 +151,42 @@ def typing_cast_dict_any(x: Any) -> Dict[str, Any]:
     return x  # narrow type for mypy/linters without importing typing.cast
 
 
-def _prepare_points(payload: Dict[str, Any]) -> List[HourPoint]:
+def _extract_series(payload: Dict[str, Any]) -> Tuple[List[str], Dict[str, List[float]]]:
+    """
+    Extract and normalize the hourly arrays we care about into a dict keyed by GraphSpec.key.
+    Truncates all series (including time) to the shortest length and limits to 24 points.
+    Raises AssertionError if no data points are available.
+    """
     hourly = payload.get("hourly") or {}
     times: List[str] = hourly.get("time") or []
-    temps: List[float] = hourly.get("temperature_2m") or []
-    hums: List[float] = hourly.get("relative_humidity_2m") or []
-    precs: List[float] = hourly.get("precipitation_probability") or []
-    winds: List[float] = hourly.get("wind_speed_10m") or []
-    clouds: List[float] = hourly.get("cloud_cover") or []
-    pressures: List[float] = hourly.get("surface_pressure") or []
+
+    series: Dict[str, List[float]] = {}
+    for gs in GRAPHS:
+        arr = hourly.get(gs.om_key) or []
+        series[gs.key] = arr
 
     # Ensure equal lengths; truncate to the shortest and to 24 points.
-    n = min(len(times), len(temps), len(hums), len(precs), len(winds), len(clouds), len(pressures), 24)
-    points: List[HourPoint] = []
-    for i in range(n):
-        points.append(
-            HourPoint(
-                time=str(times[i]),
-                temperature_c=float(temps[i]),
-                humidity_pct=float(hums[i]),
-                precip_pct=float(precs[i]),
-                wind_kph=float(winds[i]),
-                cloud_pct=float(clouds[i]),
-                pressure_hpa=float(pressures[i]),
-            )
-        )
-    return points
+    lengths = [len(times)] + [len(v) for v in series.values()]
+    n = min(lengths) if lengths else 0
+    n = min(n, 24)
+    assert n > 0, "Open-Meteo payload did not contain hourly points"
+
+    times_out = [str(times[i]) for i in range(n)]
+    series_out: Dict[str, List[float]] = {
+        k: [float(series[k][i]) for i in range(n)] for k in series
+    }
+    return times_out, series_out
 
 
-def _scale_points(
-    pts: List[HourPoint],
-    width: int,
-    height: int,
-    pad: Tuple[int, int, int, int],
-) -> Dict[str, List[Tuple[float, float]]]:
-    """
-    Map data to SVG coordinates. Humidity and precip are 0..100.
-    Temperature scales to its own min..max across the window.
-    """
-    left, top, right, bottom = pad
-    inner_w = width - left - right
-    inner_h = height - top - bottom
-    if not pts:
-        return {"temp": [], "hum": [], "prec": []}
-
-    xs = [left + (inner_w * i) / max(1, (len(pts) - 1)) for i in range(len(pts))]
-
-    tvals = [p.temperature_c for p in pts]
-    t_min = min(tvals)
-    t_max = max(tvals)
-    # Guard against flat lines
-    t_span = (t_max - t_min) or 1.0
-
-    def y_from_pct(pct: float) -> float:
-        # 0 at bottom -> top coordinate
-        return top + (inner_h * (1.0 - max(0.0, min(100.0, pct)) / 100.0))
-
-    def y_from_temp(t: float) -> float:
-        norm = (t - t_min) / t_span
-        return top + (inner_h * (1.0 - norm))
-
-    temp_xy = [(xs[i], y_from_temp(p.temperature_c)) for i, p in enumerate(pts)]
-    hum_xy = [(xs[i], y_from_pct(p.humidity_pct)) for i, p in enumerate(pts)]
-    prec_xy = [(xs[i], y_from_pct(p.precip_pct)) for i, p in enumerate(pts)]
-    return {"temp": temp_xy, "hum": hum_xy, "prec": prec_xy}
+# Legacy helpers removed; plotting now uses matplotlib directly.
 
 
-def _polyline(points: List[Tuple[float, float]]) -> str:
-    return " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
+# Legacy helpers removed; plotting now uses matplotlib directly.
 
 
 def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Render PNG charts for the next ~24 hours of:
-      - Temperature (°C, autoscaled, gradient line)
-      - Humidity (%)
-      - Precipitation probability (%)
-      - Wind speed at 10 m (km/h)
-      - Cloud cover (%)
-      - Surface pressure (hPa)
+    Render PNG charts for the next ~24 hours of the series declared in GRAPHS.
 
     Requirements:
     - payload must be an Open-Meteo response containing the above hourly series.
@@ -239,33 +198,13 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
     lat = config.LAT
     lon = config.LON
 
-    points: List[HourPoint] = []
-
     # Resolve a human-friendly location name for title
     location_name = _reverse_geocode_name(lat, lon)
     if not location_name:
         location_name = f"{lat:.4f}, {lon:.4f}"
 
-    points = _prepare_points(payload)
-    assert points, "Open-Meteo payload did not contain hourly points"
-
-    # Derive output file names (relative to provided base path)
-    temp_path = base.with_name(base.stem + "_temp.png")
-    hum_path = base.with_name(base.stem + "_humidity.png")
-    prec_path = base.with_name(base.stem + "_precip.png")
-    wind_path = base.with_name(base.stem + "_wind.png")
-    cloud_path = base.with_name(base.stem + "_clouds.png")
-    pressure_path = base.with_name(base.stem + "_pressure.png")
-
-
-    # Prepare arrays
-    times = [hp.time for hp in points]
-    temps = [hp.temperature_c for hp in points]
-    hums = [hp.humidity_pct for hp in points]
-    precs = [hp.precip_pct for hp in points]
-    winds = [hp.wind_kph for hp in points]
-    clouds = [hp.cloud_pct for hp in points]
-    pressures = [hp.pressure_hpa for hp in points]
+    # Extract normalized series
+    times, series = _extract_series(payload)
 
     def _plot_series_png(
         pth: Path,
@@ -293,12 +232,11 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
             dt = datetime.fromisoformat(t_iso)
             dts.append(dt)
 
-
         # Apply y-limits if requested (e.g., for % series)
         if ylim is not None:
             ax.set_ylim(*ylim)
 
-        base = ylim[0] if ylim is not None else (min(values) if values else 0.0)
+        base_val = ylim[0] if ylim is not None else (min(values) if values else 0.0)
 
         if gradient:
             # Temperature: color by value (blue @<=10 → red @>=26)
@@ -307,8 +245,8 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
             if y.size == 0:
                 return
             # Build colored line segments
-            points = np.array([xs, y]).T.reshape(-1, 1, 2)
-            segments = np.concatenate([points[:-1], points[1:]], axis=1)
+            pts = np.array([xs, y]).T.reshape(-1, 1, 2)
+            segments = np.concatenate([pts[:-1], pts[1:]], axis=1)
             norm = mcolors.Normalize(vmin=10.0, vmax=26.0)
             cmap = cm.get_cmap("coolwarm")
             lc = LineCollection(segments, cmap=cmap, norm=norm, linewidth=2, zorder=2)
@@ -337,7 +275,6 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
             if y1 <= y0:
                 y1 = y0 + 1.0
             # Choose an integer tick step so that there are at most 6 ticks.
-            span = y1 - y0
             import matplotlib.ticker as mticker
             # Candidate integer steps
             candidates = [1, 2, 3, 5, 10]
@@ -364,7 +301,7 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
             ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%d"))
             ax.yaxis.set_minor_locator(mticker.NullLocator())
 
-            base = y_lo
+            base_val = y_lo
 
             # Gradient under-fill: per-segment fill with lighter color
             for i in range(len(xs) - 1):
@@ -373,7 +310,7 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
                 ax.fill_between(
                     [mdates.num2date(xs[i]), mdates.num2date(xs[i + 1])],
                     [y[i], y[i + 1]],
-                    [base, base],
+                    [base_val, base_val],
                     facecolor=c,
                     alpha=0.2,
                     linewidth=0,
@@ -383,7 +320,7 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
         else:
             # Simple colored line + same-color lighter fill
             ax.plot(dts, values, color=color, linewidth=2, zorder=2)
-            ax.fill_between(dts, values, base, facecolor=color, alpha=0.2, linewidth=0, zorder=1)
+            ax.fill_between(dts, values, base_val, facecolor=color, alpha=0.2, linewidth=0, zorder=1)
             # Tight x bounds, no LR padding
             ax.set_xlim(min(dts), max(dts))
             ax.set_xmargin(0)
@@ -397,13 +334,18 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
         fig.tight_layout(pad=0.5)
         fig.savefig(pth, format="png", dpi=600)
 
-    # Render charts (also write the temperature chart to a base PNG path)
-    _plot_series_png(temp_path, times, temps, "Temperature (°C)", "#d62728", gradient=True)
-    _plot_series_png(hum_path, times, hums, "Humidity (%)", "#000000", ylim=(0, 100))
-    _plot_series_png(prec_path, times, precs, "Precipitation chance (%)", "#6baed6", ylim=(0, 100))
-    _plot_series_png(wind_path, times, winds, "Wind (10m) (km/h)", "#2ca02c", ylim=(0, 100))
-    _plot_series_png(cloud_path, times, clouds, "Cloud cover (%)", "#f2f2f2", ylim=(0, 100))
-    _plot_series_png(pressure_path, times, pressures, "Surface pressure (hPa)", "#8c564b", ylim=(0, 100))
+    # Render charts declared in GRAPHS
+    for gs in GRAPHS:
+        out_path = base.with_name(base.stem + f"_{gs.suffix}.png")
+        _plot_series_png(
+            out_path,
+            times,
+            series[gs.key],
+            gs.label,
+            gs.color,
+            ylim=gs.ylim,
+            gradient=gs.gradient,
+        )
 
     return {
         "title": f"Weather in {location_name}",
@@ -438,30 +380,19 @@ def generate_sil(**kwargs) -> str:
     data = build_daily_svg(config.WEATHER_SVG_PATH, payload)
     title = escape_sile(data["title"])
 
-    # Use build paths for charts
-    temp_path = "build/charts/weather_temp.png"
-    humidity_path = "build/charts/weather_humidity.png"
-    precip_path = "build/charts/weather_precip.png"
-    wind_path = "build/charts/weather_wind.png"
-    cloud_path = "build/charts/weather_clouds.png"
-    pressure_path = "build/charts/weather_pressure.png"
+    # Compose SILE body from GRAPHS to keep single-source-of-truth
+    body_lines: List[str] = []
+    for gs in GRAPHS:
+        label = escape_sile(gs.label)
+        image_path = f"build/charts/weather_{gs.suffix}.png"
+        body_lines.append(f"    \\font[size=9pt]{{{label}}}\n    \\cr\\img[src={image_path}, width=100%lw]")
+    body = "\n".join(body_lines)
 
     return f"""\\define[command=weathersection]{{
 \\vfil
 \\vpenalty[penalty=-500]
   \\sectionbox{{
     \\sectiontitle{{{title}}}
-    \\font[size=9pt]{{Temperature (°C)}}
-    \\cr\\img[src={temp_path}, width=100%lw]
-    \\cr\\font[size=9pt]{{Humidity (\\%)}}
-    \\cr\\img[src={humidity_path}, width=100%lw]
-    \\cr\\font[size=9pt]{{Precipitation chance (\\%)}}
-    \\cr\\img[src={precip_path}, width=100%lw]
-    \\cr\\font[size=9pt]{{Wind (10m) (km/h)}}
-    \\cr\\img[src={wind_path}, width=100%lw]
-    \\cr\\font[size=9pt]{{Cloud cover (\\%)}}
-    \\cr\\img[src={cloud_path}, width=100%lw]
-    \\cr\\font[size=9pt]{{Surface pressure (hPa)}}
-    \\cr\\img[src={pressure_path}, width=100%lw]
+{body}
   }}
 }}"""
