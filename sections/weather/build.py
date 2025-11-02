@@ -401,9 +401,9 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
     _plot_series_png(temp_path, times, temps, "Temperature (°C)", "#d62728", gradient=True)
     _plot_series_png(hum_path, times, hums, "Humidity (%)", "#000000", ylim=(0, 100))
     _plot_series_png(prec_path, times, precs, "Precipitation chance (%)", "#6baed6", ylim=(0, 100))
-    _plot_series_png(wind_path, times, winds, "Wind (10m) (km/h)", "#2ca02c")
+    _plot_series_png(wind_path, times, winds, "Wind (10m) (km/h)", "#2ca02c", ylim=(0, 100))
     _plot_series_png(cloud_path, times, clouds, "Cloud cover (%)", "#f2f2f2", ylim=(0, 100))
-    _plot_series_png(pressure_path, times, pressures, "Surface pressure (hPa)", "#8c564b")
+    _plot_series_png(pressure_path, times, pressures, "Surface pressure (hPa)", "#8c564b", ylim=(0, 100))
 
     return {
         "title": f"Weather in {location_name}",
