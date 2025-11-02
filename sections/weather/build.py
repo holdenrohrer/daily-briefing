@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import ssl
 import urllib.parse
 import urllib.request
@@ -24,13 +23,18 @@ class HourPoint:
     temperature_c: float
     humidity_pct: float
     precip_pct: float
+    wind_kph: float
+    cloud_pct: float
+    pressure_hpa: float
 
 
 def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
     """
-    Fetch up-to-24h hourly forecast (temp, humidity, precip prob) from Open-Meteo.
+    Fetch up-to-24h hourly forecast from Open-Meteo.
 
-    No API key required. Docs: https://open-meteo.com/en/docs#hourly=temperature_2m
+    Includes: temperature_2m (°C), relative_humidity_2m (%), precipitation_probability (%),
+    wind_speed_10m (km/h), cloud_cover (%), surface_pressure (hPa).
+    No API key required. Docs: https://open-meteo.com/en/docs
     """
     params = {
         "latitude": f"{lat:.5f}",
@@ -40,8 +44,12 @@ def _fetch_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
                 "temperature_2m",
                 "relative_humidity_2m",
                 "precipitation_probability",
+                "wind_speed_10m",
+                "cloud_cover",
+                "surface_pressure",
             ]
         ),
+        "windspeed_unit": "kmh",
         "forecast_days": "1",
         "timezone": "auto",
     }
@@ -95,11 +103,8 @@ def _reverse_geocode_name(lat: float, lon: float) -> str | None:
         },
     )
     ctx = ssl.create_default_context()
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
-            obj = typing_cast_dict_any(json.loads(resp.read().decode("utf-8")))
-    except Exception:
-        return None
+    with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+        obj = typing_cast_dict_any(json.loads(resp.read().decode("utf-8")))
 
     addr = typing_cast_dict_any(obj.get("address") or {})
     # Prefer city/town/village/hamlet; fall back to municipality or county
@@ -150,9 +155,12 @@ def _prepare_points(payload: Dict[str, Any]) -> List[HourPoint]:
     temps: List[float] = hourly.get("temperature_2m") or []
     hums: List[float] = hourly.get("relative_humidity_2m") or []
     precs: List[float] = hourly.get("precipitation_probability") or []
+    winds: List[float] = hourly.get("wind_speed_10m") or []
+    clouds: List[float] = hourly.get("cloud_cover") or []
+    pressures: List[float] = hourly.get("surface_pressure") or []
 
     # Ensure equal lengths; truncate to the shortest and to 24 points.
-    n = min(len(times), len(temps), len(hums), len(precs), 24)
+    n = min(len(times), len(temps), len(hums), len(precs), len(winds), len(clouds), len(pressures), 24)
     points: List[HourPoint] = []
     for i in range(n):
         points.append(
@@ -161,6 +169,9 @@ def _prepare_points(payload: Dict[str, Any]) -> List[HourPoint]:
                 temperature_c=float(temps[i]),
                 humidity_pct=float(hums[i]),
                 precip_pct=float(precs[i]),
+                wind_kph=float(winds[i]),
+                cloud_pct=float(clouds[i]),
+                pressure_hpa=float(pressures[i]),
             )
         )
     return points
@@ -208,68 +219,53 @@ def _polyline(points: List[Tuple[float, float]]) -> str:
     return " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
 
 
-def build_daily_svg(path: str | Path) -> Dict[str, Any]:
+def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Fetch hourly weather (temp C, humidity %, precip %), render three ggplot-like PNG charts
-    using matplotlib (one per series), and return metadata for JSON consumers.
+    Render PNG charts for the next ~24 hours of:
+      - Temperature (°C, autoscaled, gradient line)
+      - Humidity (%)
+      - Precipitation probability (%)
+      - Wind speed at 10 m (km/h)
+      - Cloud cover (%)
+      - Surface pressure (hPa)
 
-    Behavior:
-    - Defaults to San Francisco coordinates unless WEATHER_LAT/LON are set.
-    - Next (up to) 24 hours of:
-        temp (°C, autoscaled),
-        humidity (%),
-        precipitation probability (%).
-    - On failure, writes placeholder PNGs with an error message.
+    Requirements:
+    - payload must be an Open-Meteo response containing the above hourly series.
+    - Raises AssertionError if the payload has no hourly data.
     """
-    now = datetime.now(timezone.utc).isoformat()
     base = Path(path)
     base.parent.mkdir(parents=True, exist_ok=True)
 
     lat = config.LAT
     lon = config.LON
 
-    error_msg = None
     points: List[HourPoint] = []
 
     # Resolve a human-friendly location name for title
-    location_name = None
-    try:
-        location_name = _reverse_geocode_name(lat, lon)
-    except Exception:
-        location_name = None
+    location_name = _reverse_geocode_name(lat, lon)
     if not location_name:
         location_name = f"{lat:.4f}, {lon:.4f}"
 
-    try:
-        payload = _fetch_open_meteo(lat, lon)
-        print(payload)
-        points = _prepare_points(payload)
-        if not points:
-            error_msg = "No hourly data"
-    except Exception as e:  # noqa: BLE001
-        error_msg = f"{type(e).__name__}: {e}"
+    points = _prepare_points(payload)
+    assert points, "Open-Meteo payload did not contain hourly points"
 
     # Derive output file names (relative to provided base path)
     temp_path = base.with_name(base.stem + "_temp.png")
     hum_path = base.with_name(base.stem + "_humidity.png")
     prec_path = base.with_name(base.stem + "_precip.png")
+    wind_path = base.with_name(base.stem + "_wind.png")
+    cloud_path = base.with_name(base.stem + "_clouds.png")
+    pressure_path = base.with_name(base.stem + "_pressure.png")
 
-    def _write_error_png(pth: Path, msg: str) -> None:
-        # Minimal placeholder using matplotlib PNG backend for consistency
-        fig = Figure(figsize=(6.4, 2.0), dpi=600)
-        FigureCanvasAgg(fig)
-        ax = fig.add_subplot(1, 1, 1)
-        ax.axis("off")
-        ax.text(0.02, 0.80, "Weather unavailable", fontsize=12, fontfamily="monospace")
-        ax.text(0.02, 0.62, msg, fontsize=10, fontfamily="monospace", wrap=True)
-        ax.text(0.02, 0.06, f"Generated {now}", fontsize=8, fontfamily="monospace")
-        fig.savefig(pth, format="png", dpi=600)
 
     # Prepare arrays
     times = [hp.time for hp in points]
     temps = [hp.temperature_c for hp in points]
     hums = [hp.humidity_pct for hp in points]
     precs = [hp.precip_pct for hp in points]
+    winds = [hp.wind_kph for hp in points]
+    clouds = [hp.cloud_pct for hp in points]
+    pressures = [hp.pressure_hpa for hp in points]
 
     def _plot_series_png(
         pth: Path,
@@ -293,17 +289,8 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         # Parse ISO times like "YYYY-MM-DDTHH:MM" (possibly with 'Z')
         dts: List[datetime] = []
         for t in series_times:
-            dt = None
-            try:
-                dt = datetime.fromisoformat(t)
-            except Exception:
-                if t.endswith("Z"):
-                    try:
-                        dt = datetime.fromisoformat(t.replace("Z", "+00:00"))
-                    except Exception:
-                        dt = None
-            if dt is None:
-                dt = datetime.now()
+            t_iso = t.replace("Z", "+00:00") if t.endswith("Z") else t
+            dt = datetime.fromisoformat(t_iso)
             dts.append(dt)
 
 
@@ -410,10 +397,13 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         fig.tight_layout(pad=0.5)
         fig.savefig(pth, format="png", dpi=600)
 
-    # Render three charts (also write the temperature chart to a base PNG path)
+    # Render charts (also write the temperature chart to a base PNG path)
     _plot_series_png(temp_path, times, temps, "Temperature (°C)", "#d62728", gradient=True)
     _plot_series_png(hum_path, times, hums, "Humidity (%)", "#000000", ylim=(0, 100))
     _plot_series_png(prec_path, times, precs, "Precipitation chance (%)", "#6baed6", ylim=(0, 100))
+    _plot_series_png(wind_path, times, winds, "Wind (10m) (km/h)", "#2ca02c")
+    _plot_series_png(cloud_path, times, clouds, "Cloud cover (%)", "#f2f2f2", ylim=(0, 100))
+    _plot_series_png(pressure_path, times, pressures, "Surface pressure (hPa)", "#8c564b")
 
     return {
         "title": f"Weather in {location_name}",
@@ -424,17 +414,37 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
 def generate_sil(**kwargs) -> str:
     """
     Generate SILE code directly for the weather section.
+
+    If the Open-Meteo request fails, returns a section with the message
+    "Error: openmeteo is down".
     """
     from tools import config
     from tools.util import escape_sile
 
-    data = build_daily_svg(config.WEATHER_SVG_PATH)
+    # Single failure guard: only treat Open-Meteo fetch failures specially.
+    try:
+        payload = _fetch_open_meteo(config.LAT, config.LON)
+    except Exception:
+        msg = escape_sile("Error: openmeteo is down")
+        return f"""\\define[command=weathersection]{{
+\\vfil
+\\vpenalty[penalty=-500]
+  \\sectionbox{{
+    \\sectiontitle{{Weather}}
+    \\font[size=9pt]{{{msg}}}
+  }}
+}}"""
+
+    data = build_daily_svg(config.WEATHER_SVG_PATH, payload)
     title = escape_sile(data["title"])
 
     # Use build paths for charts
     temp_path = "build/charts/weather_temp.png"
     humidity_path = "build/charts/weather_humidity.png"
     precip_path = "build/charts/weather_precip.png"
+    wind_path = "build/charts/weather_wind.png"
+    cloud_path = "build/charts/weather_clouds.png"
+    pressure_path = "build/charts/weather_pressure.png"
 
     return f"""\\define[command=weathersection]{{
 \\vfil
@@ -447,5 +457,11 @@ def generate_sil(**kwargs) -> str:
     \\cr\\img[src={humidity_path}, width=100%lw]
     \\cr\\font[size=9pt]{{Precipitation chance (\\%)}}
     \\cr\\img[src={precip_path}, width=100%lw]
+    \\cr\\font[size=9pt]{{Wind (10m) (km/h)}}
+    \\cr\\img[src={wind_path}, width=100%lw]
+    \\cr\\font[size=9pt]{{Cloud cover (\\%)}}
+    \\cr\\img[src={cloud_path}, width=100%lw]
+    \\cr\\font[size=9pt]{{Surface pressure (hPa)}}
+    \\cr\\img[src={pressure_path}, width=100%lw]
   }}
 }}"""
