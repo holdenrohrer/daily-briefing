@@ -242,6 +242,7 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
 
     try:
         payload = _fetch_open_meteo(lat, lon)
+        print(payload)
         points = _prepare_points(payload)
         if not points:
             error_msg = "No hourly data"
@@ -249,7 +250,6 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         error_msg = f"{type(e).__name__}: {e}"
 
     # Derive output file names (relative to provided base path)
-    base_png = base.with_suffix(".png")
     temp_path = base.with_name(base.stem + "_temp.png")
     hum_path = base.with_name(base.stem + "_humidity.png")
     prec_path = base.with_name(base.stem + "_precip.png")
@@ -264,31 +264,6 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         ax.text(0.02, 0.62, msg, fontsize=10, fontfamily="monospace", wrap=True)
         ax.text(0.02, 0.06, f"Generated {now}", fontsize=8, fontfamily="monospace")
         fig.savefig(pth, format="png", dpi=600)
-
-    if error_msg:
-        # Write placeholders for all expected outputs (PNG)
-        for pth in (base_png, temp_path, hum_path, prec_path):
-            _write_error_png(pth, error_msg)
-        return {
-            "title": f"Weather in {location_name}",
-            "svg_path": str(base_png),
-            "svg_paths": {
-                "temperature": str(temp_path),
-                "humidity": str(hum_path),
-                "precip": str(prec_path),
-            },
-            "generated_at": now,
-            "lat": lat,
-            "lon": lon,
-            "error": error_msg,
-            "items": [],
-            "units": {
-                "temperature": "C",
-                "humidity": "%",
-                "precipitation_probability": "%",
-            },
-            "source": "open-meteo",
-        }
 
     # Prepare arrays
     times = [hp.time for hp in points]
@@ -310,10 +285,10 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         ax = fig.add_subplot(1, 1, 1)
         # ggplot-like styling without relying on matplotlib.style
         fig.patch.set_facecolor("white")
-        ax.set_facecolor("#EBEBEB")
+        ax.set_facecolor("white")
         for spine in ax.spines.values():
             spine.set_color("#CCCCCC")
-        ax.grid(True, which="major", axis="both", color="white", linewidth=1)
+        ax.grid(True, which="major", axis="both", color="#AAAAAA", linewidth=0.5, zorder=3)
 
         # Parse ISO times like "YYYY-MM-DDTHH:MM" (possibly with 'Z')
         dts: List[datetime] = []
@@ -331,11 +306,11 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
                 dt = datetime.now()
             dts.append(dt)
 
+
         # Apply y-limits if requested (e.g., for % series)
         if ylim is not None:
             ax.set_ylim(*ylim)
 
-        # Determine baseline for fill (0 for % series, min(values) otherwise)
         base = ylim[0] if ylim is not None else (min(values) if values else 0.0)
 
         if gradient:
@@ -353,20 +328,6 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
             mids = (y[:-1] + y[1:]) / 2.0
             lc.set_array(mids)
             ax.add_collection(lc)
-
-            # Gradient under-fill: per-segment fill with lighter color
-            for i in range(len(xs) - 1):
-                midval = (y[i] + y[i + 1]) / 2.0
-                c = cmap(norm(midval))
-                ax.fill_between(
-                    [mdates.num2date(xs[i]), mdates.num2date(xs[i + 1])],
-                    [y[i], y[i + 1]],
-                    [base, base],
-                    facecolor=c,
-                    alpha=0.2,
-                    linewidth=0,
-                    zorder=1,
-                )
 
             # Tight x bounds, no LR padding
             ax.set_xlim(mdates.num2date(xs.min()), mdates.num2date(xs.max()))
@@ -390,35 +351,48 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
                 y1 = y0 + 1.0
             # Choose an integer tick step so that there are at most 6 ticks.
             span = y1 - y0
-            try:
-                import matplotlib.ticker as mticker
-                # Candidate integer steps
-                candidates = [1, 2, 3, 5, 10]
-                chosen = 1
-                for step in candidates:
-                    # number of ticks if we start from ceil(y0) to floor(y1) with this step
-                    lo = math.ceil(y0)
-                    hi = math.floor(y1)
-                    if hi < lo:
-                        hi = lo
-                    count = ((hi - lo) // step) + 1
-                    if count <= 6:
-                        chosen = step
-                        break
-                # Expand limits to integers to align ticks nicely
-                y_lo = math.floor(y0)
-                y_hi = math.ceil(y1)
-                if y_hi <= y_lo:
-                    y_hi = y_lo + chosen
-                ax.set_ylim(y_lo, y_hi)
-                # Locator: integer multiples with chosen step
-                ax.yaxis.set_major_locator(mticker.MultipleLocator(base=float(chosen)))
-                # Formatter: integer labels
-                ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%d"))
-                ax.yaxis.set_minor_locator(mticker.NullLocator())
-            except Exception:
-                # Fallback if ticker import fails
-                ax.set_ylim(math.floor(y0), math.ceil(y1))
+            import matplotlib.ticker as mticker
+            # Candidate integer steps
+            candidates = [1, 2, 3, 5, 10]
+            chosen = 1
+            for step in candidates:
+                # number of ticks if we start from ceil(y0) to floor(y1) with this step
+                lo = math.ceil(y0)
+                hi = math.floor(y1)
+                if hi < lo:
+                    hi = lo
+                count = ((hi - lo) // step) + 1
+                if count <= 6:
+                    chosen = step
+                    break
+            # Expand limits to integers to align ticks nicely
+            y_lo = math.floor(y0)
+            y_hi = math.ceil(y1)
+            if y_hi <= y_lo:
+                y_hi = y_lo + chosen
+            ax.set_ylim(y_lo, y_hi)
+            # Locator: integer multiples with chosen step
+            ax.yaxis.set_major_locator(mticker.MultipleLocator(base=float(chosen)))
+            # Formatter: integer labels
+            ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%d"))
+            ax.yaxis.set_minor_locator(mticker.NullLocator())
+
+            base = y_lo
+
+            # Gradient under-fill: per-segment fill with lighter color
+            for i in range(len(xs) - 1):
+                midval = (y[i] + y[i + 1]) / 2.0
+                c = cmap(norm(midval))
+                ax.fill_between(
+                    [mdates.num2date(xs[i]), mdates.num2date(xs[i + 1])],
+                    [y[i], y[i + 1]],
+                    [base, base],
+                    facecolor=c,
+                    alpha=0.2,
+                    linewidth=0,
+                    zorder=1,
+                )
+
         else:
             # Simple colored line + same-color lighter fill
             ax.plot(dts, values, color=color, linewidth=2, zorder=2)
@@ -432,7 +406,6 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H"))
 
-        ax.grid(True, which="major", axis="both")
         fig.autofmt_xdate(rotation=0)
         fig.tight_layout(pad=0.5)
         fig.savefig(pth, format="png", dpi=600)
@@ -441,32 +414,11 @@ def build_daily_svg(path: str | Path) -> Dict[str, Any]:
     _plot_series_png(temp_path, times, temps, "Temperature (°C)", "#d62728", gradient=True)
     _plot_series_png(hum_path, times, hums, "Humidity (%)", "#000000", ylim=(0, 100))
     _plot_series_png(prec_path, times, precs, "Precipitation chance (%)", "#6baed6", ylim=(0, 100))
-    _plot_series_png(base_png, times, temps, "Temperature (°C)", "#d62728", gradient=True)
 
-    items = [
-        {
-            "time": hp.time,
-            "temperature_c": hp.temperature_c,
-            "humidity_pct": hp.humidity_pct,
-            "precip_pct": hp.precip_pct,
-        }
-        for hp in points
-    ]
     return {
         "title": f"Weather in {location_name}",
-        "svg_path": str(base_png),
-        "svg_paths": {
-            "temperature": str(temp_path),
-            "humidity": str(hum_path),
-            "precip": str(prec_path),
-        },
-        "generated_at": now,
-        "lat": lat,
-        "lon": lon,
-        "items": items,
-        "units": {"temperature": "C", "humidity": "%", "precipitation_probability": "%"},
-        "source": "open-meteo",
     }
+
 
 
 def generate_sil(**kwargs) -> str:
