@@ -14,16 +14,37 @@ from PIL import Image  # type: ignore
 import tools.cache as cache
 
 
-def escape_sile(text: str) -> str:
+def escape_sile(text: str, safe_commands: Optional[list[str]] = None) -> str:
     """
     Escape text for SILE by escaping backslashes, braces, and other problematic characters.
+
+    Args:
+        text: The text to escape
+        safe_commands: List of SILE commands to allow through without escaping
     """
-    return (
+    if safe_commands is None:
+        safe_commands = []
+
+    # First escape everything
+    escaped = (
         text.replace("\\", "\\\\")
         .replace("{", "\\{")
         .replace("}", "\\}")
         .replace("%", "\\%")
     )
+
+    # Then unescape safe commands (with re.DOTALL for multiline support)
+    for cmd in safe_commands:
+        import re
+        # Match \cmd{...} pattern (DOTALL allows . to match newlines)
+        pattern1 = f"\\\\\\\\{re.escape(cmd)}\\\\{{(.*?)}}"
+        escaped = re.sub(pattern1, f"\\\\{cmd}{{{r'\1'}}}", escaped, flags=re.DOTALL)
+
+        # Match \cmd[...]{...} pattern
+        pattern2 = f"\\\\\\\\{re.escape(cmd)}\\\\\\[(.*?)\\]\\\\{{(.*?)}}"
+        escaped = re.sub(pattern2, f"\\\\{cmd}[{r'\1'}]{{{r'\2'}}}", escaped, flags=re.DOTALL)
+
+    return escaped
 
 
 # -----------------------------
@@ -115,6 +136,7 @@ def calculate_pdf_printing_cost(pdf_path: Path) -> dict[str, Any]:
 
         lines = result.stdout.strip().split("\n")
         page_coverages: list[float] = []
+        ink_costs_per_page: list[float] = []
 
         for line in lines:
             values = [x for x in line.split()]
@@ -122,6 +144,9 @@ def calculate_pdf_printing_cost(pdf_path: Path) -> dict[str, Any]:
                 c, m, y, k = values[:4]
                 total_coverage = (float(c) + float(m) + float(y) + float(k)) / 4 * 100
                 page_coverages.append(total_coverage)
+                # Calculate ink cost for this page
+                page_ink_cost = total_coverage * 0.045 / 5.0
+                ink_costs_per_page.append(page_ink_cost)
 
         page_count = len(page_coverages)
         if page_count == 0:
@@ -135,19 +160,19 @@ def calculate_pdf_printing_cost(pdf_path: Path) -> dict[str, Any]:
         sheets_used = (page_count + 1) // 2
         paper_cost = sheets_used * 0.013
 
-        total_coverage = sum(page_coverages)
-        ink_cost = total_coverage * 0.045 / 5.0
-
+        ink_cost = sum(ink_costs_per_page)
         total_cost = paper_cost + ink_cost
 
         return {
             "page_count": page_count,
             "sheets_used": sheets_used,
-            "total_coverage_percent": total_coverage,
-            "average_coverage_percent": total_coverage / page_count if page_count > 0 else 0.0,
-            "paper_cost": round(paper_cost, 4),
-            "ink_cost": round(ink_cost, 4),
-            "total_cost": round(total_cost, 4),
+            "total_coverage_percent": sum(page_coverages),
+            "average_coverage_percent": sum(page_coverages) / page_count if page_count > 0 else 0.0,
+            "paper_cost": paper_cost,
+            "ink_cost": ink_cost,
+            "total_cost": total_cost,
+            "page_coverages": page_coverages,
+            "ink_costs_per_page": ink_costs_per_page,
         }
 
     except Exception as e:
@@ -206,7 +231,7 @@ def fetch_html(url: str, timeout: float = 15.0) -> str:
 def _ref(text: str):
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
-total_cost = 0
+total_llm_cost = 0
 async def llm(
     *,
     system_prompt: str,
@@ -230,8 +255,8 @@ async def llm(
     assert isinstance(token, str) and token.strip(), "OPENROUTER_API_TOKEN must be configured"
 
     async def _do():
-        global total_cost
-        response_format = {"type": "json_object"} if json else None
+        global total_llm_cost
+        response_format = {"type": "json_object"} if return_json else None
 
         resp = await acompletion(
             model=mdl,
@@ -248,7 +273,7 @@ async def llm(
         )
 
         cost = resp.usage.cost
-        total_cost += cost
+        total_llm_cost += cost
 
         content = resp["choices"][0]["message"]["content"]
         if return_json:
@@ -257,7 +282,7 @@ async def llm(
             return content
 
 
-    return await cache.get_async(f"llm:{_ref(system_prompt)}:{_ref(user_prompt)}:{model}:{json}", _do, config.LLM_TTL_S)
+    return await cache.get_async(f"llm:{_ref(system_prompt)}:{_ref(user_prompt)}:{model}:{return_json}", _do, config.LLM_TTL_S)
 
 
 def cached_png_for_url(url: str, out_dir: str | Path = "build/images", ttl: Optional[int] = None) -> str:

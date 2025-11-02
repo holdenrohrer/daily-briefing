@@ -22,6 +22,7 @@
           tenacity
           notify2
           pypdf2
+          mail-parser
         ]);
         jbMonoTtf = pkgs.runCommand "jetbrains-mono-ttf-only" {} ''
           set -eu

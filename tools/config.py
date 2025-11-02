@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Dict
 
 from tools.util import get_password_from_store, get_key_from_store
+import tools.lm_filter as lm_filter
 
 # Centralized configuration for data producers
 
@@ -29,7 +30,8 @@ RSS_FEEDS: List[str] = [
     "https://we-make-money-not-art.com/feed",
     "https://karpathy.bearblog.dev/feed/",
     "https://fivebooks.com/feed",
-    "https://solar.lowtechmagazine.com/index.xml",
+    "https://solar.lowtechmagazine.com/posts/index.xml"
+    "https://100r.ca/links/rss.xml"
     "https://www.mots-surannes.fr/feed/",
     "https://hackaday.com/feed/"
     "https://syndication.thedailywtf.com/TheDailyWtf"

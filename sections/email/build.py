@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-import email
-import email.header
+import mailparser
+import gzip
+import zipfile
+import io
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 from imapclient import IMAPClient
 
 from tools.util import escape_sile, get_official_cutoff_time, llm
-from tools.config import EMAIL_ACCOUNTS
+from tools.config import EMAIL_ACCOUNTS, EMAIL_RULES, EMAIL_CATEGORIES
+import tools.lm_filter as lm_filter
 
-import email
-from email import policy
-from email.parser import BytesParser
 from html.parser import HTMLParser
 from html import unescape
-import re
 
 import asyncio
 
@@ -49,115 +48,111 @@ def strip_html(html):
     return stripper.get_text()
 
 
-def extract_mime_content(raw_email_bytes):
+def extract_compressed_content(payload, max_size=100000):
     """
-    Extract the actual MIME content from emails that may have wrapper boundaries.
-
-    Some emails (especially from APIs) wrap the actual MIME message in an outer
-    boundary. This function finds the actual Content-Type header and extracts
-    the real message.
+    Extract content from compressed attachments (.gz, .zip) with size limit.
+    
+    Args:
+        payload: Raw attachment bytes
+        max_size: Maximum content size to prevent zip bombs (default 100KB)
+    
+    Returns:
+        str: Extracted text content or empty string if failed
     """
-    # Try to decode as string to search for headers
     try:
-        email_str = raw_email_bytes.decode('utf-8', errors='replace')
-    except AttributeError:
-        email_str = raw_email_bytes
-
-    # Look for the Content-Type header in the email
-    content_type_match = re.search(r'^Content-Type:\s*multipart/\w+.*?boundary="([^"]+)"',
-                                   email_str, re.MULTILINE | re.IGNORECASE)
-
-    if content_type_match:
-        # Find where the actual MIME headers start (after first boundary)
-        # Look for the line with Content-Type: multipart
-        lines = email_str.split('\n')
-        start_idx = 0
-
-        for i, line in enumerate(lines):
-            if re.match(r'^Content-Type:\s*multipart/', line, re.IGNORECASE):
-                start_idx = i
-                break
-
-        # Reconstruct from the actual MIME headers
-        mime_content = '\n'.join(lines[start_idx:])
-        return mime_content.encode('utf-8') if isinstance(mime_content, str) else mime_content
-
-    return raw_email_bytes
+        # Try gzip first
+        with gzip.open(io.BytesIO(payload), 'rt', encoding='utf-8', errors='replace') as f:
+            content = f.read(max_size)
+            return content
+    except (gzip.BadGzipFile, OSError):
+        pass
+    
+    try:
+        # Try zip
+        with zipfile.ZipFile(io.BytesIO(payload)) as zf:
+            content_parts = []
+            total_size = 0
+            
+            for info in zf.infolist():
+                if total_size >= max_size:
+                    break
+                
+                # Skip directories and very large files
+                if info.is_dir() or info.file_size > max_size:
+                    continue
+                
+                with zf.open(info) as f:
+                    chunk_size = min(info.file_size, max_size - total_size)
+                    data = f.read(chunk_size)
+                    text = data.decode('utf-8', errors='replace')
+                    content_parts.append(f"--- {info.filename} ---\n{text}")
+                    total_size += len(text)
+                    
+                    if total_size >= max_size:
+                        break
+            
+            return '\n\n'.join(content_parts)
+    except (zipfile.BadZipFile, UnicodeDecodeError):
+        pass
+        
+    return ""
 
 
 def parse_email_to_text(raw_email_bytes):
     """
-    Parse multipart or single-part email and return concatenated plain text.
+    Parse email and return concatenated plain text including compressed attachments.
+    Uses mail-parser for clean, automatic handling of complex nested structures.
 
     Args:
         raw_email_bytes: Raw email content as bytes
 
     Returns:
-        str: Concatenated text content from all text parts, with HTML stripped
+        str: Concatenated text content with compressed attachments expanded
     """
-    # Extract actual MIME content (handles wrapped emails)
-    mime_content = extract_mime_content(raw_email_bytes)
-
-    msg = BytesParser(policy=policy.default).parsebytes(mime_content)
-
+    mail = mailparser.parse_from_bytes(raw_email_bytes)
     text_parts = []
 
-    if msg.is_multipart():
-        for part in msg.walk():
-            content_type = part.get_content_type()
-            content_disposition = str(part.get("Content-Disposition", ""))
+    # Get plain text (preferred) or HTML text
+    if mail.text_plain:
+        text_parts.extend(mail.text_plain)
+    elif mail.text_html:
+        # Strip HTML if no plain text available
+        for html_part in mail.text_html:
+            text_parts.append(strip_html(html_part))
 
-            if "attachment" in content_disposition:
-                continue
-
-            if content_type in ["text/plain", "text/html"]:
-                payload = part.get_payload(decode=True)
-
-                if payload:
-                    charset = part.get_content_charset() or 'utf-8'
-                    try:
-                        text = payload.decode(charset, errors='replace')
-                    except (UnicodeDecodeError, LookupError, AttributeError):
-                        try:
-                            text = payload.decode('utf-8', errors='replace')
-                        except AttributeError:
-                            text = str(payload)
-
-                    if content_type == "text/html":
-                        text = strip_html(text)
-
-                    text_parts.append(text.strip())
-    else:
-        payload = msg.get_payload(decode=True)
-
-        if payload:
-            charset = msg.get_content_charset() or 'utf-8'
-            try:
-                text = payload.decode(charset, errors='replace')
-            except (UnicodeDecodeError, LookupError, AttributeError):
-                try:
-                    text = payload.decode('utf-8', errors='replace')
-                except AttributeError:
-                    text = str(payload)
-
-            if msg.get_content_type() == "text/html":
-                text = strip_html(text)
-
-            text_parts.append(text.strip())
+    # Handle compressed attachments (for DMARC reports, etc.)
+    for attachment in mail.attachments:
+        filename = attachment.get('filename', '')
+        if filename.endswith(('.gz', '.zip')):
+            payload = attachment.get('payload')
+            if payload:
+                compressed_content = extract_compressed_content(payload)
+                if compressed_content:
+                    text_parts.append(f"--- Attachment: {filename} ---\n{compressed_content}")
 
     return '\n\n'.join(filter(None, text_parts))
 
 
-def _email_summarize(context: str, body: str) -> List[str]:
-    prompt = ''.join((
-        "You are a filter. You take an email and pare it down.\n",
-        "Marketing emails should become ONLY ONE SENTENCE.\n",
-        "Appointments should become ONLY ONE SENTENCE.\n"
-        "DO NOT INCLUDE EXTRANEOUS FACTS ABOUT THE EMAIL LIKE UNSUBSCRIBE LINKS.\n"
-        "Quotes, personal messages, etc. should be conveyed verbatim. Use fancy quotation marks to indicate you are speaking verbatim\n"
-        "Note: I already have access to context '{context}'. Do not duplicate the context.\n",
-        ))
-    return llm(system_prompt=prompt, user_prompt=body, return_json=False)
+async def _apply_email_filter(email_data: Dict[str, Any]) -> str:
+    """
+    Apply filtering rules to email based on EMAIL_RULES and EMAIL_CATEGORIES configuration.
+    """
+    # First check EMAIL_RULES for specific conditions
+    for rule in EMAIL_RULES:
+        if rule['condition'](email_data):
+            return await rule['display'](email_data)
+    
+    # Use EMAIL_CATEGORIES with category detection
+    category_names = [cat['looks_like'] for cat in EMAIL_CATEGORIES]
+    category = await lm_filter.categorize_email(email_data, category_names)
+    
+    # Find matching category and apply its filter
+    for cat_config in EMAIL_CATEGORIES:
+        if category.lower().strip() == cat_config['looks_like'].lower().strip():
+            return await cat_config['display'](email_data)
+    
+    # Fallback to oneline if no match found
+    return await lm_filter.oneline(email_data)
 
 def fetch_emails() -> List[Dict[str, Any]]:
     """
@@ -185,40 +180,65 @@ def fetch_emails() -> List[Dict[str, Any]]:
 
             # Fetch all unread emails
             if messages:
-                # Fetch email data
-                response = server.fetch(messages, ['ENVELOPE', 'BODY.PEEK[TEXT]'])
+                # Fetch email data including full message for processing
+                response = server.fetch(messages, ['ENVELOPE', 'BODY.PEEK[TEXT]', 'BODY.PEEK[]'])
 
-                async def extract_email(msgid, data):
+                async def extract_email_metadata(msgid, data):
+                    """Extract basic email metadata without LLM processing."""
                     envelope = data[b'ENVELOPE']
-                    body_data = data.get(b'BODY[TEXT]', b'')
+                    raw_email_bytes = data.get(b'BODY[]', b'')
 
-                    # Extract email details from envelope
-                    subject = envelope.subject.decode('utf-8') if envelope.subject else '(No Subject)'
-                    from_addr = str(envelope.from_[0]) if envelope.from_ else '(Unknown Sender)'
+                    # Parse email using mail-parser for clean header decoding
+                    mail = mailparser.parse_from_bytes(raw_email_bytes)
+                    
+                    # Extract email details (mail-parser handles all the encoding automatically)
+                    subject = mail.subject or '(No Subject)'
+                    from_addr = mail.from_[0][1] if mail.from_ and mail.from_[0] else '(Unknown Sender)'
                     email_date = envelope.date
 
                     # Convert date to UTC if needed
                     if email_date and email_date.tzinfo is None:
                         email_date = email_date.replace(tzinfo=timezone.utc)
                     if email_date.astimezone(timezone.utc) < cutoff_time.astimezone(timezone.utc):
-                        return
+                        return None
 
-                    # Limit body length to avoid overwhelming output
-                    context = f'{{"subject": {subject}, "from": {from_addr}, "received": {email_date}}}'
-                    body = parse_email_to_text(body_data)
-                    body = await _email_summarize(context, body[:50000])
-
+                    # Parse email content (includes compressed attachments)
+                    raw_body = parse_email_to_text(raw_email_bytes)
+                    
+                    # Create email data structure for filtering
                     return {
                         'subject': subject,
                         'from': from_addr,
                         'date': email_date,
-                        'body': body,
+                        'raw_body': raw_body,
+                        'raw_email_bytes': raw_email_bytes,
                         'account': f"{imap_user}@{imap_server}"
                     }
-                async def _get_all_emails():
-                    return await asyncio.gather(*[extract_email(msgid, data) for msgid, data in response.items()])
-                all_emails = asyncio.run(_get_all_emails())
-                all_emails = [email for email in all_emails if email is not None]
+
+                async def process_emails():
+                    # First extract all metadata concurrently
+                    email_metadata = await asyncio.gather(*[
+                        extract_email_metadata(msgid, data) 
+                        for msgid, data in response.items()
+                    ])
+                    
+                    # Filter out None results
+                    valid_emails = [email for email in email_metadata if email is not None]
+                    
+                    # Then apply filters concurrently to all valid emails
+                    if valid_emails:
+                        processed_bodies = await asyncio.gather(*[
+                            _apply_email_filter(email_data) 
+                            for email_data in valid_emails
+                        ])
+                        
+                        # Combine metadata with processed bodies
+                        for email_data, processed_body in zip(valid_emails, processed_bodies):
+                            email_data['body'] = processed_body
+                    
+                    return valid_emails
+
+                all_emails = asyncio.run(process_emails())
 
     # Sort by date, most recent first
     all_emails.sort(key=lambda x: x['date'] if x['date'] else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
@@ -268,9 +288,9 @@ def generate_sil(**kwargs) -> str:
 
 
             if body:
-                escaped_body = escape_sile(body)
+                # Body is already processed and escaped by the filter functions
                 content_lines.append("\\font[size=10pt]{\\set[parameter=document.baselineskip, value=10pt]")
-                content_lines.append(escaped_body)
+                content_lines.append(body)
                 content_lines.append("}    \\par")
 
             content_lines.append("    \\smallskip")

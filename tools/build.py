@@ -13,7 +13,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -30,6 +29,9 @@ os.chdir(PROJECT_ROOT)
 import importlib
 from types import ModuleType
 from tools import config, util
+
+# Global metadata variable - sections can add to this directly
+metadata_info = {}
 import notify2
 import time
 
@@ -41,10 +43,6 @@ def _ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _write_json(path: Path, data: Dict[str, Any]) -> None:
-    _ensure_dir(path.parent)
-    with path.open("w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, sort_keys=True, ensure_ascii=False)
 
 
 def _parse_iso(ts: str | None) -> datetime | None:
@@ -100,54 +98,16 @@ def _write_sil(file: str | Path, sil_content: str, verbose: bool = False) -> Non
         print(f"[build] Wrote {file}")
 
 
-def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None = None, official: bool = False) -> None:
+def _write_per_section_sils(verbose: bool = False, cutoff_dt: datetime | None = None, official: bool = False) -> None:
     """
-    Write per-section JSON files under build/.
+    Generate per-section .sil files and populate global metadata.
     Time-based filtering (e.g., RSS) is handled inside sections; pass cutoff_dt
     to limit items published at or after that moment. When 'official' is True,
-    rss metadata will be annotated accordingly.
+    sections will be annotated accordingly.
     """
-    def _fetch_json(file: str | Path, getter: Callable[..., Any], *args, **kwargs) -> Dict[str, Any]:
-        data = getter(*args, **kwargs)
-        if not isinstance(data, dict):
-            data = {"items": data}
-        _write_json(Path(file), data)
-        if verbose:
-            print(f"[build] Wrote {file}")
-        return data
+    global metadata_info
 
-    # Get section data using dynamic approach based on config
-    section_data = {}
-
-    # Build args that some sections might need (but most should get from config.py)
-    build_args = {
-        "since": cutoff_dt,  # Only for time-filtered sections like RSS
-        "official": official,  # Only for sections that care about official builds
-    }
-
-    for section in config.SECTIONS:
-
-        if section == "metadata":
-            sil_generator = _generate_metadata_sil
-        else:
-            # Direct import of generate_sil from sections.{section}.build
-            module = importlib.import_module(f"sections.{section}.build")
-            sil_generator = getattr(module, "generate_sil")
-        # Most sections should get what they need from config.py
-        # Only pass build-specific args that can't be in config
-        sil_content = sil_generator(**build_args)
-        _write_sil(f"build/{section}.sil", sil_content, verbose)
-
-    # Extract individual section data for metadata
-    rss_data = section_data.get("rss", {})
-    wiki_data = section_data.get("wikipedia", {})
-    spend_data = section_data.get("api_spend", {})
-    yt_data = section_data.get("youtube", {})
-    fb_data = section_data.get("facebook", {})
-    cal_data = section_data.get("caldav", {})
-    weather_data = section_data.get("weather", {})
-
-    # Metadata (for end-of-document display)
+    # Initialize base metadata
     def _git_rev() -> str | None:
         try:
             out = subprocess.run(
@@ -162,111 +122,57 @@ def _write_per_section_jsons(verbose: bool = False, cutoff_dt: datetime | None =
         except Exception:
             return None
 
-    # Generate metadata section dynamically based on config.SECTIONS
-    metadata_sections = {}
-    for section in config.SECTIONS[:-1]:  # Exclude metadata itself
-        if section == "rss":
-            metadata_sections[section] = {
-                "items": len(rss_data.get("items", [])) if isinstance(rss_data, dict) else 0,
-                "sources": (rss_data.get("meta", {}) or {}).get("sources") if isinstance(rss_data, dict) else None,
-            }
-        elif section == "wikipedia":
-            metadata_sections[section] = {
-                "updated": (wiki_data or {}).get("updated") if isinstance(wiki_data, dict) else None,
-            }
-        elif section == "api_spend":
-            metadata_sections[section] = {
-                "date": (spend_data or {}).get("date") if isinstance(spend_data, dict) else None,
-                "total_usd": (spend_data or {}).get("total_usd") if isinstance(spend_data, dict) else None,
-            }
-        elif section == "youtube":
-            metadata_sections[section] = {
-                "items": len(yt_data.get("items", [])) if isinstance(yt_data, dict) else 0,
-            }
-        elif section == "facebook":
-            metadata_sections[section] = {
-                "items": len(fb_data.get("items", [])) if isinstance(fb_data, dict) else 0,
-            }
-        elif section == "caldav":
-            metadata_sections[section] = {
-                "items": len(cal_data.get("items", [])) if isinstance(cal_data, dict) else 0,
-            }
-        elif section == "weather":
-            metadata_sections[section] = {
-                "svg_path": (weather_data or {}).get("svg_path") if isinstance(weather_data, dict) else None,
-            }
-
-    metadata: Dict[str, Any] = {
-        "title": "Metadata",
-        "created_iso": _iso_now(),
-        "cutoff_iso": cutoff_dt.isoformat() if cutoff_dt else None,
-        "official": bool(official),
-        "python_version": sys.version,
-        "git_rev": _git_rev(),
-        "sections": metadata_sections,
+    metadata_info = {
+        "Created": _iso_now(),
+        "Cutoff": cutoff_dt.isoformat() if cutoff_dt else "None",
+        "Official build": "Yes" if official else "No",
+        "Git rev": _git_rev() or "Unknown",
     }
-    _fetch_json("build/metadata.json", lambda: metadata)
+
+    # Build args that some sections might need (but most should get from config.py)
+    build_args = {
+        "since": cutoff_dt,  # Only for time-filtered sections like RSS
+        "official": official,  # Only for sections that care about official builds
+    }
+
+    for section in config.SECTIONS:
+        if section == "metadata":
+            sil_generator = _generate_metadata_sil
+        else:
+            # Direct import of generate_sil from sections.{section}.build
+            module = importlib.import_module(f"sections.{section}.build")
+            sil_generator = getattr(module, "generate_sil")
+        # Most sections should get what they need from config.py
+        # Only pass build-specific args that can't be in config
+        sil_content = sil_generator(**build_args)
+        _write_sil(f"build/{section}.sil", sil_content, verbose)
 
 
 
 def _generate_metadata_sil(**kwargs) -> str:
-    """Generate SILE code directly for the metadata section."""
+    """Generate SILE code directly for the metadata section - simple k:v displayer."""
     from tools.util import escape_sile
 
-    # Read the metadata JSON that was already generated
-    with open("build/metadata.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
+    global metadata_info
+    data = metadata_info
 
     content_lines = [
-        "  \\vpenalty[penalty=-500]\\vfilll",
+        "  \\vpenalty[penalty=-500]\\vfilll\\novbreak",
         "  \\font[weight=200,size=6pt]{",
         "    \\set[parameter=document.baselineskip, value=8pt]",
+        "    \\set[parameter=document.parskip, value=8pt]",
+        "    \\set[parameter=document.parindent, value=0pt]",
         "    \\novbreak",
         "    Metadata",
-        "    \\par",
     ]
 
-    if data.get("created_iso"):
-        content_lines.append(f"    Created: {escape_sile(str(data['created_iso']))}")
-        content_lines.append("    \\par")
-    if data.get("cutoff_iso"):
-        content_lines.append(f"    Cutoff: {escape_sile(str(data['cutoff_iso']))}")
-        content_lines.append("    \\par")
+    # Simple k:v display for all metadata
+    for key, value in data.items():
+        if value is not None:
+            content_lines.append("    \\vpenalty[penalty=5]")
+            content_lines.append(f"    {key}: {escape_sile(str(value))}")
 
-    content_lines.append(f"    Official build: {'Yes' if data.get('official') else 'No'}")
-    content_lines.append("    \\par")
-
-    if data.get("git_rev"):
-        content_lines.append(f"    Git rev: {escape_sile(str(data['git_rev']))}")
-        content_lines.append("    \\par")
-
-    if data.get("python_version"):
-        pyver = str(data["python_version"])
-        firstline = pyver.split('\n')[0] if '\n' in pyver else pyver
-        content_lines.append(f"    Python: {escape_sile(firstline)}")
-        content_lines.append("    \\par")
-
-    sections = data.get("sections", {})
-    if sections.get("rss", {}).get("items"):
-        content_lines.append(f"    RSS items: {sections['rss']['items']}")
-        content_lines.append("    \\par")
-    if sections.get("youtube", {}).get("items"):
-        content_lines.append(f"    YouTube items: {sections['youtube']['items']}")
-        content_lines.append("    \\par")
-    if sections.get("facebook", {}).get("items"):
-        content_lines.append(f"    Facebook items: {sections['facebook']['items']}")
-        content_lines.append("    \\par")
-    if sections.get("caldav", {}).get("items"):
-        content_lines.append(f"    CALDAV items: {sections['caldav']['items']}")
-        content_lines.append("    \\par")
-
-    if data.get("printing_cost"):
-        cost = data["printing_cost"]
-        if not cost.get("error"):
-            content_lines.append(f"    Printing Cost: ${cost.get('total_cost', 0):.2f}")
-            content_lines.append("    \\par")
-
-    content_lines.append("  }")
+    content_lines.append("\\par}")
     content = "\n".join(content_lines)
 
     return f"""\\define[command=metadatasection]{{
@@ -495,7 +401,7 @@ def main(argv: list[str] | None = None) -> int:
     # Determine cutoff for time-based sections using util function
     cutoff_dt = util.get_official_cutoff_time()
 
-    _write_per_section_jsons(verbose=bool(args.verbose), cutoff_dt=cutoff_dt, official=bool(args.official))
+    _write_per_section_sils(verbose=bool(args.verbose), cutoff_dt=cutoff_dt, official=bool(args.official))
 
     # Generate build/main.sil based on available sections
     _generate_main_sil()
@@ -539,13 +445,23 @@ def main(argv: list[str] | None = None) -> int:
               f"({cost_info['page_count']} pages, {cost_info['sheets_used']} sheets, "
               f"{cost_info['average_coverage_percent']:.1f}% avg coverage)")
 
-    # Update metadata with cost info and regenerate
-    metadata_path = Path("build/metadata.json")
-    with metadata_path.open("r", encoding="utf-8") as f:
-        metadata = json.load(f)
-    metadata["printing_cost"] = cost_info
-    with metadata_path.open("w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2, sort_keys=True, ensure_ascii=False)
+        # Add cost data directly to global metadata with proper formatting
+        metadata_info["Paper Cost"] = f"${cost_info['paper_cost']:.4f}"
+        metadata_info["Ink Cost"] = f"${cost_info['ink_cost']:.4f}"
+
+        # Format ink cost per page as requested
+        ink_costs_per_page = cost_info['ink_costs_per_page']
+        ink_costs_by_page = []
+        for i, page_ink_cost in enumerate(ink_costs_per_page, 1):
+            ink_costs_by_page.append(f"{i}: ${page_ink_cost:.4f}")
+        metadata_info["Ink Cost by Page"] = "[" + ", ".join(ink_costs_by_page) + "]"
+
+        # Calculate total cost
+        total_cost = util.total_llm_cost + cost_info['paper_cost'] + cost_info['ink_cost']
+        metadata_info["Total Cost"] = f"${total_cost:.4f}"
+
+    # Add LLM cost to global metadata with formatting
+    metadata_info["LLM Cost"] = f"${util.total_llm_cost:.4f}"
 
     _write_sil("build/metadata.sil", _generate_metadata_sil(), args.verbose)
 
