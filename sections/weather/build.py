@@ -36,7 +36,7 @@ GRAPHS: List[GraphSpec] = [
     GraphSpec("hum", "relative_humidity_2m", "humidity", "Humidity (%)", "#000000", (0, 100), False),
     GraphSpec("precip", "precipitation_probability", "precip", "Precipitation chance (%)", "#6baed6", (0, 100), False),
     GraphSpec("wind", "wind_speed_10m", "wind", "Wind (10m) (km/h)", "#2ca02c", None, False),
-    GraphSpec("clouds", "cloud_cover", "clouds", "Cloud cover (%)", "#f2f2f2", (0, 100), False, alpha=0.6, stroke="#bfbfbf"),
+    GraphSpec("clouds", "cloud_cover", "clouds", "Cloud cover (%)", "#f2f2f2", (0, 100), False, alpha=0.8, stroke="#bfbfbf"),
     GraphSpec("pressure", "surface_pressure", "pressure", "Surface pressure (hPa)", "#8c564b", None, False, alpha=0.3),
 ]
 
@@ -221,7 +221,7 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
         ax.set_facecolor("white")
         for spine in ax.spines.values():
             spine.set_color("#CCCCCC")
-        ax.grid(True, which="major", axis="both", color="#AAAAAA", linewidth=0.5, zorder=3)
+        ax.grid(True, which="major", axis="both", color="#AAAAAA", linewidth=0.5, zorder=1)
 
         # Parse ISO times like "YYYY-MM-DDTHH:MM" (possibly with 'Z')
         dts: List[datetime] = []
@@ -312,17 +312,18 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
                     facecolor=c,
                     alpha=fill_alpha,
                     linewidth=0,
-                    zorder=1,
+                    zorder=2,
                 )
 
         else:
             # Simple colored line + same-color lighter fill
-            ax.plot(dts, values, color=(stroke_color or color), linewidth=2, zorder=2)
+            ax.plot(dts, values, color=(stroke_color or color), linewidth=2, zorder=1)
             base_val = ax.get_ylim()[0]
-            ax.fill_between(dts, values, base_val, facecolor=color, alpha=fill_alpha, linewidth=0, zorder=1)
+            ax.fill_between(dts, values, base_val, facecolor=color, alpha=fill_alpha, linewidth=0, zorder=2)
             # Tight x bounds, no LR padding
             ax.set_xlim(min(dts), max(dts))
             ax.set_xmargin(0)
+            ax.set_ymargin(0)
             ax.margins(x=0)
 
         # Hourly ticks and labels
@@ -386,7 +387,7 @@ def generate_sil(**kwargs) -> str:
     for gs in GRAPHS:
         label = escape_sile(gs.label)
         image_path = f"build/charts/weather_{gs.suffix}.png"
-        body_lines.append(f"    \\font[size=9pt]{{{label}}}\n    \\cr\\img[src={image_path}, width=100%lw]")
+        body_lines.append(f"    \\cr\\font[size=9pt]{{{label}}}\n    \\cr\\img[src={image_path}, width=100%lw]")
     body = "\n".join(body_lines)
 
     return f"""\\define[command=weathersection]{{
