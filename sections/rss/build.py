@@ -28,36 +28,36 @@ def _slugify(s: str) -> str:
     return s or "untitled"
 
 
-def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
-def _parse_iso(ts: str) -> datetime | None:
-    if not ts:
+def _ensure_local(dt: datetime | None) -> datetime | None:
+    """
+    Ensure a timezone-aware datetime in the local timezone.
+    - If dt is None, returns None.
+    - If dt is naive, it is assumed to be in UTC, then converted to local time.
+    """
+    if dt is None:
         return None
-    try:
-        s = ts.strip()
-        if s.endswith("Z"):
-            s = s[:-1] + "+00:00"
-        dt = datetime.fromisoformat(s)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
-    except Exception:
-        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone()
 
 
-def _safe_iso(date_str: str) -> str:
+def _safe_datetime(date_str: str) -> datetime:
+    """
+    Parse a date string into a timezone-aware datetime in the local timezone.
+    Falls back to current local time if parsing fails.
+    """
     if not date_str:
-        return _iso_now()
+        return datetime.now().astimezone()
     try:
         dt = parsedate_to_datetime(date_str)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc).isoformat()
+        return dt.astimezone()
     except Exception:
         # Fall back to current time if parsing fails
-        return _iso_now()
+        return datetime.now().astimezone()
 
 
 def _truncate_words(s: str, limit: int) -> str:
@@ -72,15 +72,13 @@ def _truncate_words(s: str, limit: int) -> str:
     return " ".join(words[:limit]) + "…"
 
 
-def _format_published_for_subtitle(published_iso: str) -> str:
+def _format_published_for_subtitle(published_dt: datetime | None) -> str:
     """
-    Format an ISO8601 timestamp into a friendly subtitle string.
+    Format a datetime into a friendly subtitle string in local time.
     Example: "Published 24 June 2027 3pm".
-    If parsing fails, uses current UTC time.
+    If None is provided, uses current local time.
     """
-    dt = _parse_iso(published_iso)
-    if dt is None:
-        dt = datetime.now(timezone.utc)
+    dt = _ensure_local(published_dt) or datetime.now().astimezone()
     hour = dt.hour
     hour12 = hour % 12 or 12
     ampm = "am" if hour < 12 else "pm"
@@ -114,7 +112,7 @@ def fetch_rss(
     Fetch and normalize RSS/Atom feeds into a structure:
     {
       "items": [
-        { title, link, source, source_slug, source_host, slug, published (ISO8601 UTC), summary },
+        { title, link, source, source_slug, source_host, slug, published (datetime, local tz), summary },
         ...
       ],
       "groups": {
@@ -129,7 +127,7 @@ def fetch_rss(
     - Uses 'feedparser' to parse feeds.
     - If 'feeds' is None or empty, defaults are taken from $RSS_FEEDS (comma-separated)
       or a built-in set of popular feeds.
-    - If 'since' is provided, only include items with published >= since (UTC).
+    - If 'since' is provided, only include items with published >= since (local tz; both must be timezone-aware).
       The response meta will include 'cutoff_iso' and 'official'.
     """
     ttl = int(ttl_s if ttl_s is not None else int(os.getenv("RSS_TTL", "1800")))
@@ -158,14 +156,14 @@ def fetch_rss(
                         published = datetime.fromtimestamp(
                             calendar.timegm(entry["published_parsed"]),
                             tz=timezone.utc,
-                        ).isoformat()
+                        ).astimezone()
                     elif entry.get("updated_parsed"):
                         published = datetime.fromtimestamp(
                             calendar.timegm(entry["updated_parsed"]),
                             tz=timezone.utc,
-                        ).isoformat()
+                        ).astimezone()
                     else:
-                        published = _safe_iso(entry.get("published") or entry.get("updated") or "")
+                        published = _safe_datetime(entry.get("published") or entry.get("updated") or "")
                     summary_raw = unescape(entry.get("summary") or entry.get("description") or "")
                     # Strip simple HTML tags and collapse whitespace before truncation
                     summary_text = re.sub(r"<[^>]+>", " ", summary_raw)
@@ -211,11 +209,16 @@ def fetch_rss(
         items = cache.get(f"rss:{url}", fetch_and_parse_feed, ttl)
         # Apply 'since' filtering and enforce per-feed limit after filtering
         if since is not None:
+            assert isinstance(since, datetime), "since must be a datetime"
+            since_local = _ensure_local(since)
+            assert since_local is not None and since_local.tzinfo is not None, "since must be timezone-aware"
             filtered_items: List[Dict[str, Any]] = []
             for it in items:
-                pub_dt = _parse_iso(str(it.get("published") or ""))
-                if pub_dt is not None and pub_dt >= since:
-                    filtered_items.append(it)
+                pub_dt = it.get("published")
+                if isinstance(pub_dt, datetime):
+                    pub_dt_local = _ensure_local(pub_dt)
+                    if pub_dt_local is not None and pub_dt_local >= since_local:
+                        filtered_items.append(it)
             items = filtered_items
 
         all_items.extend(items)
@@ -237,7 +240,8 @@ def fetch_rss(
         "sources": len(groups),
     }
     if since is not None:
-        meta["cutoff_iso"] = since.isoformat()
+        assert isinstance(since, datetime), "since must be a datetime"
+        meta["cutoff"] = _ensure_local(since)
     if official:
         meta["official"] = True
 
