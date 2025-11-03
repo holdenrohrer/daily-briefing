@@ -24,6 +24,7 @@ def escape_sile(text: str, safe_commands: Optional[list[str]] = None) -> str:
     """
     if safe_commands is None:
         safe_commands = []
+    assert not any(command.startswith('\\') for command in safe_commands), "safe_commands should be command names without backslashes"
 
     # First escape everything
     escaped = (
@@ -36,13 +37,13 @@ def escape_sile(text: str, safe_commands: Optional[list[str]] = None) -> str:
     # Then unescape safe commands (with re.DOTALL for multiline support)
     for cmd in safe_commands:
         import re
-        # Match \cmd{...} pattern (DOTALL allows . to match newlines)
-        pattern1 = f"\\\\\\\\{re.escape(cmd)}\\\\{{(.*?)}}"
-        escaped = re.sub(pattern1, f"\\\\{cmd}{{{r'\1'}}}", escaped, flags=re.DOTALL)
+        # Match \\command\{...\} pattern
+        pattern1 = rf"\\\\{re.escape(cmd)}\\{{(.*?)\\}}"
+        escaped = re.sub(pattern1, rf"\\{cmd}{{\1}}", escaped, flags=re.DOTALL)
 
-        # Match \cmd[...]{...} pattern
-        pattern2 = f"\\\\\\\\{re.escape(cmd)}\\\\\\[(.*?)\\]\\\\{{(.*?)}}"
-        escaped = re.sub(pattern2, f"\\\\{cmd}[{r'\1'}]{{{r'\2'}}}", escaped, flags=re.DOTALL)
+        # Match \\command[...]\{...\} pattern
+        pattern2 = rf"\\\\{re.escape(cmd)}\[(.*?)\]\\{{(.*?)\\}}"
+        escaped = re.sub(pattern2, rf"\\{cmd}[{{\1}}]{{\2}}", escaped, flags=re.DOTALL)
 
     return escaped
 
@@ -121,7 +122,7 @@ def calculate_pdf_printing_cost(pdf_path: Path) -> dict[str, Any]:
             "-q",
             "-o",
             "-",
-            "-sDEVICE=inkcov",
+            "-sDEVICE=ink_cov",
             str(pdf_path),
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -142,7 +143,7 @@ def calculate_pdf_printing_cost(pdf_path: Path) -> dict[str, Any]:
             values = [x for x in line.split()]
             if len(values) >= 4:
                 c, m, y, k = values[:4]
-                total_coverage = (float(c) + float(m) + float(y) + float(k)) / 4 * 100
+                total_coverage = (float(c) + float(m) + float(y) + float(k)) / 4
                 page_coverages.append(total_coverage)
                 # Calculate ink cost for this page
                 page_ink_cost = total_coverage * 0.045 / 5.0
@@ -268,7 +269,7 @@ async def llm(
             api_base=api_base,
             api_key=token,
             temperature=temperature,
-            extra_body={"zdr": True, "usage": {"include": True}},
+            extra_body={"provider": {"order": ["fireworks"], "zdr": True}, "usage": {"include": True}},
             num_retries=5,
         )
 
@@ -282,7 +283,7 @@ async def llm(
             return content
 
 
-    return await cache.get_async(f"llm:{_ref(system_prompt)}:{_ref(user_prompt)}:{model}:{return_json}", _do, config.LLM_TTL_S)
+    return await cache.get_async(f"llm:{_ref(system_prompt)}:{_ref(user_prompt)}:{mdl}:{return_json}", _do, config.LLM_TTL_S)
 
 
 def cached_png_for_url(url: str, out_dir: str | Path = "build/images", ttl: Optional[int] = None) -> str:
@@ -361,3 +362,53 @@ def sile_img_from_url(
     """Fetch an image URL (cached) and return a SILE \\img command string sized to fit."""
     local = cached_png_for_url(url, out_dir=out_dir, ttl=ttl)
     return build_sile_image_from_local(local, max_width_in=max_width_in, max_height_in=max_height_in)
+
+
+def outlook_account():
+    from imapclient import IMAPClient
+    import msal
+    import os
+
+    # MSAL setup (same as before)
+    CLIENT_ID = "8d8b8fd3-e117-442d-aa2c-a17086446dec" # this is a gatech app CLIENT_ID i set up myself!
+    TENANT_ID = "common"
+    SCOPES = ["https://outlook.office365.com/IMAP.AccessAsUser.All"]
+
+    cache = msal.SerializableTokenCache()
+    if os.path.exists("data/cache/token_cache.bin"):
+        cache.deserialize(open("data/cache/token_cache.bin", "r").read())
+
+    app = msal.PublicClientApplication(
+        client_id=CLIENT_ID,
+        authority=f"https://login.microsoftonline.com/{TENANT_ID}",
+        token_cache=cache
+    )
+
+    user = None
+
+    # Get token (silent or interactive)
+    accounts = app.get_accounts()
+    if accounts:
+        result = app.acquire_token_silent(SCOPES,
+                                        account=accounts[0])
+        user = accounts[0]['username']
+    else:
+        result = None
+
+    if not result:
+        result = app.acquire_token_interactive(scopes=SCOPES, port=6093)
+        user = result['id_token_claims']['preferred_username']
+
+    # Save cache
+    if cache.has_state_changed:
+        open("data/cache/token_cache.bin", "w").write(cache.serialize())
+
+    # Connect with imapclient
+    access_token = result["access_token"]
+
+    return {
+        'account_type': 'oauth2',
+        'username': user,
+        'access_token': access_token,
+        'server': 'outlook.office365.com',
+    }

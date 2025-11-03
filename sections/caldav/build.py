@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 import caldav
 
 from tools.util import escape_sile
@@ -63,9 +63,11 @@ def generate_sil(**kwargs) -> str:
     content_lines = [f"    \\sectiontitle{{{title}}}"]
 
     if not events:
-        content_lines.append("    No events scheduled")
-        content_lines.append("    \\par")
+        content_lines.append("No events scheduled")
+        content_lines.append("\\par")
     else:
+        all_day_events = [ev for ev in events if isinstance(ev['start'], date)]
+        events = [ev for ev in events if not isinstance(ev['start'], date)]
         events.sort(key=lambda event: event.get("start"))
         for event in events:
             event_title = escape_sile(event.get("summary", "(untitled)"))
@@ -82,24 +84,24 @@ def generate_sil(**kwargs) -> str:
             else:
                 time = ""
 
-            content_lines.append(f"    \\font[weight=600]{{{event_title}}}")
+            content_lines.append(f"\\font[weight=600]{{{event_title}}}")
             if calendar:
                 content_lines.append(f"({calendar})")
-            content_lines.append("    \\cr")
+            content_lines.append("\\cr")
 
             if time:
-                content_lines.append(f"    \\Subtle{{{time}}}")
+                content_lines.append(f"\\Subtle{{{time}}}")
                 if location:
                     content_lines.append(f" · {location}")
-                content_lines.append("    \\par")
+                content_lines.append("\\par")
             elif location:
-                content_lines.append(f"    \\Subtle{{{location}}}")
-                content_lines.append("    \\par")
+                content_lines.append(f"\\Subtle{{{location}}}")
+                content_lines.append("\\par")
 
     content = "\n".join(content_lines)
 
     return f"""\\define[command=caldavsection]{{
-  \\sectionbox{{
+\\sectionbox{{
 {content}
-  }}
+}}
 }}"""

@@ -4,96 +4,39 @@ import calendar
 import os
 import re
 import sys
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 from html import unescape
-from itertools import groupby
-from pathlib import Path
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 import feedparser  # type: ignore
+from dateutil import parser as dateutil_parser
 
 from tools import cache
 from tools.util import escape_sile
-from .pluralistic import is_pluralistic_host, extract_content_and_toc
+import tools.lm_filter as lm_filter
+import asyncio
 
 
-def _slugify(s: str) -> str:
-    s = unescape(s or "").lower().strip()
-    s = re.sub(r"[^a-z0-9]+", "-", s)
-    s = s.strip("-")
-    return s or "untitled"
-
-
-
-
-def _ensure_local(dt: datetime | None) -> datetime | None:
-    """
-    Ensure a timezone-aware datetime in the local timezone.
-    - If dt is None, returns None.
-    - If dt is naive, it is assumed to be in UTC, then converted to local time.
-    """
+def _ensure_local_timezone(dt: datetime | None) -> datetime | None:
+    """Convert datetime to timezone-aware local time. Assumes UTC if naive."""
     if dt is None:
         return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone()
 
 
-def _safe_datetime(date_str: str) -> datetime:
-    """
-    Parse a date string into a timezone-aware datetime in the local timezone.
+def _safe_datetime(date_input: str | datetime) -> datetime:
+    """Parse date string or datetime to timezone-aware datetime in local timezone."""
+    if isinstance(date_input, datetime):
+        return _ensure_local_timezone(date_input)
 
-    Accepts ISO-8601/RFC 3339 and RFC 2822 formats.
-    Raises ValueError if the input is empty or cannot be parsed.
-    """
-    s = (date_str or "").strip()
-    if not s:
-        raise ValueError("date_str must be a non-empty string")
-    # Try ISO-8601 / RFC 3339 first
-    try:
-        iso = s[:-1] + "+00:00" if s.endswith("Z") else s
-        dt = datetime.fromisoformat(iso)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone()
-    except Exception:
-        pass
-    # Fallback to RFC 2822 parsing
-    dt = parsedate_to_datetime(s)
-    if dt is None:
-        raise ValueError(f"Unparseable date string: {s!r}")
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone()
+    if not (date_input or "").strip():
+        raise ValueError("date_input must be a non-empty string or datetime")
 
-
-def _truncate_words(s: str, limit: int) -> str:
-    """
-    Truncate a string to the first 'limit' words, collapsing whitespace.
-    """
-    if limit <= 0:
-        return s.strip()
-    words = re.findall(r"\S+", s)
-    if len(words) <= limit:
-        return " ".join(words)
-    return " ".join(words[:limit]) + "…"
-
-
-def _format_published_for_subtitle(published_dt: datetime | None) -> str:
-    """
-    Format a datetime into a friendly subtitle string in local time.
-    Example: "Published 24 June 2027 3pm".
-    If None is provided, uses current local time.
-    """
-    dt = _ensure_local(published_dt) or datetime.now().astimezone()
-    hour = dt.hour
-    hour12 = hour % 12 or 12
-    ampm = "am" if hour < 12 else "pm"
-    return f"Published {dt.day} {dt.strftime('%B')} {dt.year} {hour12}{ampm}"
+    dt = dateutil_parser.parse(date_input)
+    return _ensure_local_timezone(dt)
 
 
 def _fetch_url(url: str, timeout: float = 10.0) -> bytes:
@@ -102,19 +45,8 @@ def _fetch_url(url: str, timeout: float = 10.0) -> bytes:
         return resp.read()
 
 
-def _text(el: ET.Element | None, tag: str) -> str:
-    if el is None:
-        return ""
-    child = el.find(tag)
-    if child is not None and child.text:
-        return child.text.strip()
-    return ""
-
-
-def fetch_rss(
-    feeds: List[str] | None = None,
-    per_feed_limit: int = 5,
-    total_limit: int = 10,
+async def fetch_rss(
+    feeds: List[str | Dict[str, Any]] | None = None,
     ttl_s: int | None = None,
     since: datetime | None = None,
     official: bool = False,
@@ -141,126 +73,82 @@ def fetch_rss(
     - If 'since' is provided, only include items with published >= since (both must be timezone-aware).
       The response meta will include 'cutoff' and 'official'.
     """
-    ttl = int(ttl_s if ttl_s is not None else int(os.getenv("RSS_TTL", "1800")))
 
     all_items: List[Dict[str, Any]] = []
     cache_hits = 0
     cache_misses = 0
 
-    for url in feeds:
-        def fetch_and_parse_feed():
-            items = []
-            raw = _fetch_url(url, timeout=10.0)
-            parsed_items: List[Dict[str, Any]] = []
+    async def fetch_and_parse_feed(feed_config):
+        if isinstance(feed_config, str):
+            url = feed_config
+            parser_func = lm_filter.default_rss
+        else:
+            url = feed_config.get('url')
+            parser_func = feed_config.get('parser')
 
-            d = feedparser.parse(raw)
+        try:
+            d = cache.get(f'rss:url:{url}',
+                          lambda: feedparser.parse(_fetch_url(url)),
+                          ttl=ttl_s)
+
             source_host = urlparse(url).netloc
-            source_title = (getattr(d, "feed", {}) or {}).get("title") or source_host
-            source_slug = _slugify(source_title or source_host)
-            is_pluralistic = is_pluralistic_host(source_host)
-            entries = list(getattr(d, "entries", []) or [])
-            if entries:
-                for entry in entries:
-                    title = unescape((entry.get("title") or "(untitled)")).strip()
-                    link = entry.get("link") or entry.get("id") or url
-                    if entry.get("published_parsed"):
-                        published = datetime.fromtimestamp(
-                            calendar.timegm(entry["published_parsed"]),
-                            tz=timezone.utc,
-                        ).astimezone()
-                    elif entry.get("updated_parsed"):
-                        published = datetime.fromtimestamp(
-                            calendar.timegm(entry["updated_parsed"]),
-                            tz=timezone.utc,
-                        ).astimezone()
-                    else:
-                        published = _safe_datetime(entry.get("published") or entry.get("updated") or "")
-                    assert isinstance(published, datetime) and published.tzinfo is not None, "published must be a timezone-aware datetime"
-                    summary_raw = unescape(entry.get("summary") or entry.get("description") or "")
-                    # Strip simple HTML tags and collapse whitespace before truncation
-                    summary_text = re.sub(r"<[^>]+>", " ", summary_raw)
-                    summary_text = re.sub(r"\s+", " ", summary_text).strip()
-                    summary = _truncate_words(summary_text, 100)
+            source_title = d['feed']['title']
+            entries = d["entries"]
 
-                    # Build subtitles list:
-                    # - For pluralistic: use ToC items (if any)
-                    # - For others: use the truncated summary
-                    # In all cases, append a friendly published timestamp.
-                    published_note = _format_published_for_subtitle(published)
-                    subtitles: List[str] = []
-                    content_html = None
-                    toc_items: List[str] = []
-                    if is_pluralistic:
-                        content_html, toc_items = extract_content_and_toc(entry)
-                        subtitles = list(toc_items) if toc_items else []
-                    else:
-                        if summary:
-                            subtitles = [summary]
-                    subtitles.append(published_note)
+            async def entry_parse(entry):
+                title = unescape((entry.get("title") or "(untitled)")).strip()
+                link = entry.get("link")
 
-                    item = {
-                        "title": title or "(untitled)",
-                        "link": link,
-                        "source": source_title,
-                        "source_slug": source_slug,
-                        "source_host": source_host,
-                        "slug": _slugify(title),
-                        "published": published,
-                        "summary": summary,
-                        "subtitles": subtitles,
-                    }
-                    if content_html:
-                        item["content"] = content_html
-                    if toc_items:
-                        item["toc"] = toc_items
-                    parsed_items.append(item)
+                # Parse published date
+                if entry.get("published_parsed"):
+                    published = _ensure_local_timezone(
+                        datetime.fromtimestamp(calendar.timegm(entry["published_parsed"]), tz=timezone.utc)
+                    )
+                elif entry.get("updated_parsed"):
+                    published = _ensure_local_timezone(
+                        datetime.fromtimestamp(calendar.timegm(entry["updated_parsed"]), tz=timezone.utc)
+                    )
+                else:
+                    published = _safe_datetime(entry.get("published") or entry.get("updated") or "")
 
-            items = parsed_items
-            return items
+                assert isinstance(published, datetime) and published.tzinfo is not None
 
-        items = cache.get(f"rss:{url}", fetch_and_parse_feed, ttl)
-        # Apply 'since' filtering (timezone-aware comparison)
-        if since is not None:
-            assert isinstance(since, datetime), "since must be a datetime"
-            assert since.tzinfo is not None, "since must be timezone-aware"
-            items = [
-                it for it in items
-                if isinstance(it.get("published"), datetime)
-                and it["published"].tzinfo is not None
-                and it["published"] >= since
-            ]
+                if since is not None:
+                    if published < since:
+                        return
 
-        all_items.extend(items)
+                # Store item with metadata (no parser_func to avoid JSON serialization issues)
+                item = {
+                    "title": title,
+                    "link": link,
+                    "source": source_title,
+                    "published": _safe_datetime(published),
+                    "description": entry.get("description", '') or entry.get('summary', ''),
+                    "summary": entry.get('summary', ''),
+                    "content": entry.get("content", ''),
+                }
+                item['summary'] = title
+                item['summary'] = await parser_func(item)
+                return item
 
+            out = await asyncio.gather(*[entry_parse(entry) for entry in entries])
+            return {'title': source_title, 'items': [it for it in out if it is not None]}
 
-    # Group by source (non-breaking addition for consumers that only read "items")
-    groups: Dict[str, Dict[str, Any]] = {}
-    for it in all_items:
-        src = str(it.get("source") or "")
-        host = str(it.get("source_host") or urlparse(it.get("link", "")).netloc)
-        sslug = str(it.get("source_slug") or _slugify(src or host))
-        grp = groups.setdefault(sslug, {"source": src or host, "source_slug": sslug, "items": []})
-        grp["items"].append(it)
+        except Exception as e:
+            import traceback
+            print(f"Failed to fetch RSS feed {url}:")
+            if not isinstance(e, HTTPError):
+                traceback.print_exc()
+            return {'title': url,
+                    'items': [{
+                        "title": f"Feed failed to parse: {urlparse(url).netloc}",
+                        "slug": "feed-parse-error",
+                        "summary": f"Error fetching feed: {str(e)}",
+                    }]}
 
-    meta: Dict[str, Any] = {
-        "cache_hits": cache_hits,
-        "cache_misses": cache_misses,
-        "ttl_s": ttl,
-        "sources": len(groups),
-    }
-    if since is not None:
-        assert isinstance(since, datetime), "since must be a datetime"
-        assert since.tzinfo is not None, "since must be timezone-aware"
-        meta["cutoff"] = since
-    if official:
-        meta["official"] = True
-
-    return {
-        "title": "RSS Highlights",
-        "items": all_items,
-        "groups": groups,
-        "meta": meta,
-    }
+    sections = await asyncio.gather(*[fetch_and_parse_feed(feed_config) for feed_config in feeds])
+    sections = [section for section in sections if len(section['items']) > 0]
+    return sections
 
 
 def generate_sil(
@@ -273,38 +161,23 @@ def generate_sil(
     Gets feeds from config.py, only needs build-time args.
     """
     from tools import config
-    data = fetch_rss(feeds=config.RSS_FEEDS, since=since, official=official)
-    items = data.get("items", [])
+    sections = asyncio.run(fetch_rss(feeds=config.RSS_FEEDS, since=since, official=official, ttl_s=config.RSS_FEED_TTL_S))
 
-    def _render_item_group(source: str, group_items: List[Dict[str, Any]]) -> str:
+    def _render_section(section) -> str:
         """Render a group of items from the same source."""
-        lines = [f"    \\sectiontitle{{{escape_sile(source)}}}"]
+        title = section['title']
+        lines = ["\\sectionbox{", f"\\sectiontitle{{{escape_sile(title)}}}"]
 
-        for item in group_items:
-            title = escape_sile(str(item.get("title", "(untitled)")))
-            lines.append(f"    \\rssItemTitle{{{title}}}\\cr")
+        for item in section['items']:
+            lines.append(item['summary'])
+            lines.append("\\par")
 
-            for subtitle in item.get("subtitles", []):
-                if subtitle:
-                    escaped_subtitle = escape_sile(str(subtitle))
-                    lines.append(f" \\rssSubtitle{{{escaped_subtitle}}}\\cr")
-
-            lines.append("    \\rssItemSeparator")
-
+        lines.append("}")
         return "\n".join(lines)
 
-    # Group items by source while preserving order
-    grouped_items = groupby(items, key=lambda x: str(x.get("source", "Blog")))
-
-    item_groups = [
-        _render_item_group(source, list(group_items))
-        for source, group_items in grouped_items
-    ]
-
-    content = "\n  }\n  \\sectionbox{\n".join(item_groups)
+    rendered = map(_render_section, sections)
+    content = "\n".join(rendered)
 
     return f"""\\define[command=rsssection]{{
-  \\sectionbox{{
-    {content}
-  }}
+{content}
 }}"""

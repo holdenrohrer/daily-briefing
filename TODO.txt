@@ -1,17 +1,5 @@
-- Email flow should be more rigorous: some emails automatically include
-  verbatim, some emails are automatically deleted
-- DMARC emails aren't correctly interpreted at all. Easy fix.
-
-- Some blogs should be full-context (TheZvi, pluralistic)
-- Change the way that sections are configured.
-    - Instead of "rss" being listed, then having a list of blogs, just
-      do rss_feed("https://pluralistic.net"). a little more high-tech
-    - This would make the previous suggestion much easier.
-
 - Fix Facebook brightdata. Note that this'll have to be kinda asynch :(
 - Youtube API
 - OpenRouter /activity API
-
-- Add rateyourmusic blog.
 
 - Package this so that it can be executed as a systemd service. config.py needs to be in /etc/config.py, /run/${mktemp} for builddir, /var/cache/daily-briefing, cache rotation, move official.json out of cache. probably /var/lib

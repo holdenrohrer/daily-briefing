@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Union, Any
 
-from tools.util import get_password_from_store, get_key_from_store
+from tools.util import get_password_from_store, get_key_from_store, outlook_account
 import tools.lm_filter as lm_filter
 
 # Centralized configuration for data producers
@@ -21,20 +21,22 @@ SECTIONS: List[str] = [
     "metadata",
 ]
 
-RSS_FEEDS: List[str] = [
+RSS_FEEDS: List[Union[str, Dict[str, Any]]] = [
     "https://feeds.arstechnica.com/arstechnica/index",
-    "https://pluralistic.net/feed/",
+    {"url": "https://pluralistic.net/feed/", "parser": lm_filter.pluralistic_filter},
     "https://astralcodexten.substack.com/feed",
-    "https://thezvi.substack.com/feed",
+    {"url": "https://thezvi.substack.com/feed", "parser": lm_filter.verbatim_rss},
+    "https://samkriss.substack.com/feed"
     "https://blog.kagi.com/rss.xml",
     "https://we-make-money-not-art.com/feed",
     "https://karpathy.bearblog.dev/feed/",
     "https://fivebooks.com/feed",
-    "https://solar.lowtechmagazine.com/posts/index.xml"
-    "https://100r.ca/links/rss.xml"
-    "https://www.mots-surannes.fr/feed/",
-    "https://hackaday.com/feed/"
-    "https://syndication.thedailywtf.com/TheDailyWtf"
+    "https://solar.lowtechmagazine.com/posts/index.xml",
+    {"url": "https://100r.ca/links/rss.xml", "parser": lm_filter.verbatim_rss},
+    "https://www.mots-surannes.fr/feed",
+    "https://hackaday.com/feed",
+    "https://theeggandtherock.com/feed",
+    {"url": "https://www.christophertitmussdharma.org/feed", "parser": lm_filter.verbatim_rss},
 ]
 
 COMIC_FEEDS: List[str] = [
@@ -63,18 +65,28 @@ WEATHER_SVG_PATH: str | Path = "build/charts/weather.svg"
 EMAIL_ACCOUNTS: List[Dict[str, str]] = [
     {
         "server": "hrhr.dev",
+        "account_type": "normal",
         "username": "hr",
         "password": get_password_from_store("hrhr.dev/hr")
-    }
+    },
+    outlook_account()
 ]
 
 EMAIL_RULES = [
     {
         "condition": lambda m: m['from'] == 'jaynithya123@gmail.com',
-        "display": lm_filter.verbatim_with_images
+        "display": lm_filter.verbatim, # move to verbatim_with_images soon
     },
 ]
 EMAIL_CATEGORIES = [
+    {
+        "looks_like": "DMARC Report",
+        "display": lm_filter.dmarc_summary
+    },
+    {
+        "looks_like": "Transaction or Confirmation",
+        "display": lm_filter.oneline
+    },
     {
         "looks_like": "Marketing",
         "display": lm_filter.oneline
@@ -86,10 +98,10 @@ EMAIL_CATEGORIES = [
 ]
 
 # OpenRouter API configuration
-# NOTE: Fill OPENROUTER_API_TOKEN with your actual token. Code asserts non-empty.
+
 OPENROUTER_API_TOKEN: str = get_key_from_store("openrouter", "apikey")
 OPENROUTER_CREDITS_URL: str = "https://openrouter.ai/api/v1/credits"
-LLM: str = "openrouter/qwen/qwen3-8b"
+LLM: str = "openrouter/meta-llama/llama-3.1-70b-instruct"
 LLM_TTL_S: int = 86400
 
 # Comics section caching configuration
@@ -101,6 +113,8 @@ COMICS_IMAGE_TTL_S: int = 86400
 # Maximum rendered image size (inches) for comics images in SILE
 COMICS_IMAGE_MAX_HEIGHT_IN: float = 6.0
 COMICS_IMAGE_MAX_WIDTH_IN: float = 5.0
+
+RSS_FEED_TTL_S: int = 3600
 
 # Printing configuration
 PRINTER_NAME: str = "holdens_printer"

@@ -210,10 +210,10 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
         values: List[float],
         ylabel: str,
         color: str,
-        ylim: tuple[float, float] | None = None,
-        gradient: bool = False,
-        fill_alpha: float = 0.2,
-        stroke_color: str | None = None,
+        ylim: tuple[float, float] | None,
+        gradient: bool,
+        fill_alpha: float,
+        stroke_color: str | None,
     ) -> None:
         fig = Figure(figsize=(6.4, 2.0), dpi=600)
         FigureCanvasAgg(fig)
@@ -298,12 +298,12 @@ def build_daily_svg(path: str | Path, payload: Dict[str, Any]) -> Dict[str, Any]
                     facecolor=c,
                     alpha=fill_alpha,
                     linewidth=0,
-                    zorder=1,
+                    zorder=2,
                 )
         else:
             # Simple colored line + same-color lighter fill
             ax.plot(dts, values, color=(stroke_color or color), linewidth=2, zorder=2)
-            ax.fill_between(dts, values, base_val, facecolor=color, alpha=fill_alpha, linewidth=0, zorder=1)
+            ax.fill_between(dts, values, base_val, facecolor=color, alpha=fill_alpha, linewidth=0, zorder=2)
 
         # Tight x bounds, no LR padding
         ax.set_xlim(mdates.num2date(xs.min()), mdates.num2date(xs.max()))
@@ -355,8 +355,6 @@ def generate_sil(**kwargs) -> str:
     except Exception:
         msg = escape_sile("Error: openmeteo is down")
         return f"""\\define[command=weathersection]{{
-\\vfil
-\\vpenalty[penalty=-500]
   \\sectionbox{{
     \\sectiontitle{{Weather}}
     \\font[size=9pt]{{{msg}}}

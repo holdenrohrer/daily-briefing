@@ -23,6 +23,8 @@
           notify2
           pypdf2
           mail-parser
+          python-dateutil
+          msal
         ]);
         jbMonoTtf = pkgs.runCommand "jetbrains-mono-ttf-only" {} ''
           set -eu

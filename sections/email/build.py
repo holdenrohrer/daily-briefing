@@ -51,14 +51,22 @@ def strip_html(html):
 def extract_compressed_content(payload, max_size=100000):
     """
     Extract content from compressed attachments (.gz, .zip) with size limit.
-    
+
     Args:
-        payload: Raw attachment bytes
+        payload: Raw attachment bytes or base64 string
         max_size: Maximum content size to prevent zip bombs (default 100KB)
-    
+
     Returns:
         str: Extracted text content or empty string if failed
     """
+    # Convert payload to bytes if it's a string (base64 encoded)
+    if isinstance(payload, str):
+        import base64
+        try:
+            payload = base64.b64decode(payload)
+        except Exception:
+            return ""
+
     try:
         # Try gzip first
         with gzip.open(io.BytesIO(payload), 'rt', encoding='utf-8', errors='replace') as f:
@@ -66,35 +74,35 @@ def extract_compressed_content(payload, max_size=100000):
             return content
     except (gzip.BadGzipFile, OSError):
         pass
-    
+
     try:
         # Try zip
         with zipfile.ZipFile(io.BytesIO(payload)) as zf:
             content_parts = []
             total_size = 0
-            
+
             for info in zf.infolist():
                 if total_size >= max_size:
                     break
-                
+
                 # Skip directories and very large files
                 if info.is_dir() or info.file_size > max_size:
                     continue
-                
+
                 with zf.open(info) as f:
                     chunk_size = min(info.file_size, max_size - total_size)
                     data = f.read(chunk_size)
                     text = data.decode('utf-8', errors='replace')
                     content_parts.append(f"--- {info.filename} ---\n{text}")
                     total_size += len(text)
-                    
+
                     if total_size >= max_size:
                         break
-            
+
             return '\n\n'.join(content_parts)
     except (zipfile.BadZipFile, UnicodeDecodeError):
         pass
-        
+
     return ""
 
 
@@ -133,32 +141,38 @@ def parse_email_to_text(raw_email_bytes):
     return '\n\n'.join(filter(None, text_parts))
 
 
-async def _apply_email_filter(email_data: Dict[str, Any]) -> str:
+async def _apply_email_filter(email_data: Dict[str, Any]) -> tuple[str, str]:
     """
     Apply filtering rules to email based on EMAIL_RULES and EMAIL_CATEGORIES configuration.
+    Returns tuple of (processed_body, category)
     """
     # First check EMAIL_RULES for specific conditions
     for rule in EMAIL_RULES:
         if rule['condition'](email_data):
-            return await rule['display'](email_data)
-    
+            processed_body = await rule['display'](email_data)
+            return processed_body, "Rule Match"
+
     # Use EMAIL_CATEGORIES with category detection
     category_names = [cat['looks_like'] for cat in EMAIL_CATEGORIES]
     category = await lm_filter.categorize_email(email_data, category_names)
-    
+
     # Find matching category and apply its filter
     for cat_config in EMAIL_CATEGORIES:
         if category.lower().strip() == cat_config['looks_like'].lower().strip():
-            return await cat_config['display'](email_data)
-    
-    # Fallback to oneline if no match found
-    return await lm_filter.oneline(email_data)
+            processed_body = await cat_config['display'](email_data)
+            return processed_body, category
 
-def fetch_emails() -> List[Dict[str, Any]]:
+    # Fallback to oneline if no match found
+    processed_body = await lm_filter.oneline(email_data)
+    return processed_body, "Other"
+
+def fetch_emails(official=False) -> List[Dict[str, Any]]:
     """
     Fetch unread emails from IMAP servers using credentials from config.
+    If official=True, mark displayed emails as read.
     """
     all_emails = []
+    emails_to_mark_read = []  # Track (server, message_ids) for marking as read
 
     # Get cutoff time but with oldest=infinitely old to never miss emails
     cutoff_time = get_official_cutoff_time(oldest=timedelta(days=365*100))  # 100 years ago
@@ -166,17 +180,21 @@ def fetch_emails() -> List[Dict[str, Any]]:
     for account in EMAIL_ACCOUNTS:
         imap_server = account["server"]
         imap_user = account["username"]
-        imap_pass = account["password"]
 
         # Connect to IMAP server
         with IMAPClient(imap_server, ssl=True) as server:
-            server.login(imap_user, imap_pass)
+            if account['account_type'] == 'normal':
+                server.login(imap_user, account['password'])
+            elif account['account_type'] == 'oauth2':
+                server.oauth2_login(imap_user, account['access_token'])
+            else:
+                raise Exception(f"Unknown email account type {account_type}")
 
             # Select INBOX
             server.select_folder('INBOX')
 
             # Search for unread emails since cutoff time
-            messages = server.search(['UNSEEN', 'SINCE', cutoff_time.date()])
+            messages = server.search(['UNSEEN', 'SINCE', (cutoff_time-timedelta(days=1)).date()])
 
             # Fetch all unread emails
             if messages:
@@ -190,21 +208,20 @@ def fetch_emails() -> List[Dict[str, Any]]:
 
                     # Parse email using mail-parser for clean header decoding
                     mail = mailparser.parse_from_bytes(raw_email_bytes)
-                    
+
                     # Extract email details (mail-parser handles all the encoding automatically)
                     subject = mail.subject or '(No Subject)'
                     from_addr = mail.from_[0][1] if mail.from_ and mail.from_[0] else '(Unknown Sender)'
                     email_date = envelope.date
 
                     # Convert date to UTC if needed
-                    if email_date and email_date.tzinfo is None:
-                        email_date = email_date.replace(tzinfo=timezone.utc)
+                    print('here with', email_date.astimezone(timezone.utc), 'and', cutoff_time.astimezone(timezone.utc))
                     if email_date.astimezone(timezone.utc) < cutoff_time.astimezone(timezone.utc):
                         return None
 
                     # Parse email content (includes compressed attachments)
                     raw_body = parse_email_to_text(raw_email_bytes)
-                    
+
                     # Create email data structure for filtering
                     return {
                         'subject': subject,
@@ -212,33 +229,42 @@ def fetch_emails() -> List[Dict[str, Any]]:
                         'date': email_date,
                         'raw_body': raw_body,
                         'raw_email_bytes': raw_email_bytes,
-                        'account': f"{imap_user}@{imap_server}"
+                        'account': f"{imap_user}@{imap_server}",
+                        'message_id': msgid  # Track message ID for marking as read
                     }
 
                 async def process_emails():
                     # First extract all metadata concurrently
                     email_metadata = await asyncio.gather(*[
-                        extract_email_metadata(msgid, data) 
+                        extract_email_metadata(msgid, data)
                         for msgid, data in response.items()
                     ])
-                    
+                    print(email_metadata)
+
                     # Filter out None results
                     valid_emails = [email for email in email_metadata if email is not None]
-                    
+
                     # Then apply filters concurrently to all valid emails
                     if valid_emails:
-                        processed_bodies = await asyncio.gather(*[
-                            _apply_email_filter(email_data) 
+                        filter_results = await asyncio.gather(*[
+                            _apply_email_filter(email_data)
                             for email_data in valid_emails
                         ])
-                        
-                        # Combine metadata with processed bodies
-                        for email_data, processed_body in zip(valid_emails, processed_bodies):
+
+                        # Combine metadata with processed bodies and categories
+                        for email_data, (processed_body, category) in zip(valid_emails, filter_results):
                             email_data['body'] = processed_body
-                    
+                            email_data['category'] = category
+
                     return valid_emails
 
-                all_emails = asyncio.run(process_emails())
+                processed_emails = asyncio.run(process_emails())
+                all_emails.extend(processed_emails)
+
+                # Track emails for marking as read if this is an official build
+                if official:
+                    message_ids = [email['message_id'] for email in processed_emails]
+                    server.set_flags(message_ids, ['\\Seen'])
 
     # Sort by date, most recent first
     all_emails.sort(key=lambda x: x['date'] if x['date'] else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
@@ -252,7 +278,8 @@ def generate_sil(**kwargs) -> str:
     """
     Generate SILE code directly for the email section.
     """
-    emails = fetch_emails()
+    official = kwargs.get('official', False)
+    emails = fetch_emails(official=official)
 
     title = "Unread Emails"
 
@@ -268,6 +295,7 @@ def generate_sil(**kwargs) -> str:
             body = email_item.get('body', '')
             email_date = email_item.get('date')
             account = escape_sile(email_item.get('account', ''))
+            category = escape_sile(email_item.get('category', ''))
 
             # Format date
             if email_date:
@@ -275,25 +303,31 @@ def generate_sil(**kwargs) -> str:
             else:
                 date_str = "(No Date)"
 
-            content_lines.append(f" \\font[weight=600]{{{escape_sile(subject)}}}")
-            content_lines.append("    \\par")
+            # Start new paragraph properly before noindent
+            content_lines.append("\\par")
+            content_lines.append(f"\\noindent\\font[weight=600]{{{escape_sile(subject)}}}")
+            if category:
+                content_lines.append(f"\\Subtle{{ · {category}}}")
+            content_lines.append("\\par")
 
-            content_lines.append(f"    \\Subtle{{From: {from_addr}}}")
-            content_lines.append("    \\par")
+            content_lines.append(f"\\noindent\\Subtle{{From: {from_addr}}}")
+            content_lines.append("\\par")
 
-            content_lines.append(f"    \\Subtle{{Date: {escape_sile(date_str)}}}")
+            # Combine date and account on same line to avoid extra noindents
+            date_line = f"\\noindent\\Subtle{{Date: {escape_sile(date_str)}"
             if account:
-                content_lines.append(f" · Account: {account}")
-            content_lines.append("    \\par")
-
+                date_line += f" · Account: {account}"
+            date_line += "}"
+            content_lines.append(date_line)
+            content_lines.append("\\par")
 
             if body:
-                # Body is already processed and escaped by the filter functions
+                # Body text should be indented normally - no noindent
                 content_lines.append("\\font[size=10pt]{\\set[parameter=document.baselineskip, value=10pt]")
-                content_lines.append(body)
-                content_lines.append("}    \\par")
+                content_lines.append(body)  # Don't add extra indentation spaces
+                content_lines.append("}\\par")
 
-            content_lines.append("    \\smallskip")
+            content_lines.append("\\bigskip")
 
     content = "\n".join(content_lines)
 

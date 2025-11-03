@@ -6,7 +6,18 @@ from email.parser import BytesParser
 from typing import Any, Dict
 
 from tools.util import llm, escape_sile, sile_img_from_url
+from urllib.request import Request, urlopen
+from html import unescape
+import re
 
+safe_tools = ['title', 'header', 'bold', 'italics', 'bolditalics', 'enumerate', 'itemize', 'item',]
+tools_prompt = (
+    "You may use the following tags as needed: \\title{} for titles, \\header{} for headers, "
+    "\\bold{} for bold text, \\italics{} for italics, \\bolditalics{} for bold italics.\n"
+    "No other tags are valid and they will display incorrectly to the user.\n"
+    "Please do not include any other tags than the above listed.\n"
+    "Do not include any HTML, markdown, links, URLs, or images of any kind in your output.\n"
+)
 
 async def oneline(email_data: Dict[str, Any]) -> str:
     """
@@ -14,21 +25,41 @@ async def oneline(email_data: Dict[str, Any]) -> str:
     """
     context = f"Subject: {email_data.get('subject', '')}, From: {email_data.get('from', '')}"
     body = email_data.get('raw_body', '')
-    
+
     prompt = (
         "You are a filter. You take an email and pare it down to ONLY ONE SENTENCE. "
-        "Marketing emails should become a brief summary. "
-        "Appointments should mention the key details in one sentence. "
-        "DO NOT INCLUDE EXTRANEOUS FACTS ABOUT THE EMAIL LIKE UNSUBSCRIBE LINKS. "
         f"Note: I already have access to context '{context}'. Do not duplicate the context."
     )
-    
+
     result = await llm(
         system_prompt=prompt,
         user_prompt=body[:10000],  # Limit body length
         return_json=False
     )
-    
+
+    return escape_sile(result)
+
+
+async def dmarc_summary(email_data: Dict[str, Any]) -> str:
+    """
+    Filter DMARC reports to a single line summary of domain authentication status.
+    """
+    body = email_data.get('raw_body', '')
+
+    prompt = (
+        "You are a DMARC report summarizer. Extract key authentication information and "
+        "summarize in ONE SENTENCE. Focus on: domain name, pass/fail status, "
+        "and any significant authentication issues. "
+        "Example: 'example.com: All messages passed DMARC, SPF, and DKIM authentication.' "
+        "or 'example.com: 5 messages failed DMARC due to SPF alignment issues.'"
+    )
+
+    result = await llm(
+        system_prompt=prompt,
+        user_prompt=body[:15000],  # DMARC reports can be longer
+        return_json=False
+    )
+
     return escape_sile(result)
 
 
@@ -37,72 +68,23 @@ async def verbatim(email_data: Dict[str, Any]) -> str:
     Return email content verbatim with minimal formatting, allowing safe SILE commands.
     """
     body = email_data.get('raw_body', '')
-    
+
     prompt = (
-        "You are a filter that preserves important content verbatim. "
-        "For personal messages, quotes, and important communications, return the content "
-        "with minimal changes but clean formatting. "
-        "Use fancy quotation marks to indicate verbatim content when appropriate. "
+        "You are a filter that preserves important content verbatim.\n"
+        "Return the content "
+        "with minimal changes but clean formatting.\n"
+        "DO NOT delete or summarize any body text.\n"
         "Remove signatures, disclaimers, and unsubscribe links."
-    )
-    
+    ) + tools_prompt
+
     result = await llm(
         system_prompt=prompt,
-        user_prompt=body[:20000],
+        user_prompt=body[:50000],
         return_json=False
     )
-    
+
     # Allow basic formatting commands but escape everything else
-    safe_commands = ['font', 'par', 'smallskip', 'bigskip']
-    return escape_sile(result, safe_commands)
-
-
-async def verbatim_with_images(email_data: Dict[str, Any]) -> str:
-    """
-    Return email content verbatim with images from URLs and attachments processed.
-    """
-    body = email_data.get('raw_body', '')
-    raw_email = email_data.get('raw_email_bytes', b'')
-    
-    # Extract images from email attachments
-    image_commands = []
-    if raw_email:
-        image_commands = await _extract_email_images(raw_email)
-    
-    prompt = (
-        "You are a filter that preserves content verbatim while identifying image URLs. "
-        "For any image URLs you find in the text, replace them with the placeholder: "
-        "{{IMG_URL: <url>}} "
-        "Preserve the rest of the content with minimal changes. "
-        "Remove signatures, disclaimers, and unsubscribe links. "
-        "Use fancy quotation marks for quoted content."
-    )
-    
-    result = await llm(
-        system_prompt=prompt,
-        user_prompt=body[:20000],
-        return_json=False
-    )
-    
-    # Process image URL placeholders
-    import re
-    def replace_img_url(match):
-        url = match.group(1)
-        try:
-            return sile_img_from_url(url, max_width_in=5.0, max_height_in=4.0)
-        except Exception:
-            return f"[Image: {url}]"
-    
-    result = re.sub(r'\{\{IMG_URL:\s*([^}]+)\}\}', replace_img_url, result)
-    
-    # Add attachment images
-    if image_commands:
-        result += "\n\n" + "\n".join(image_commands)
-    
-    # Allow image and formatting commands
-    safe_commands = ['img', 'font', 'par', 'smallskip', 'bigskip']
-    return escape_sile(result, safe_commands)
-
+    return escape_sile(result, safe_tools)
 
 async def categorize_email(email_data: Dict[str, Any], valid_categories: list[str]) -> str:
     """
@@ -111,85 +93,116 @@ async def categorize_email(email_data: Dict[str, Any], valid_categories: list[st
     subject = email_data.get('subject', '')
     from_addr = email_data.get('from', '')
     body = email_data.get('raw_body', '')[:5000]  # Limit for categorization
-    
+
     categories_list = ', '.join(valid_categories)
-    
+
     prompt = (
         f"You are an email categorizer. Based on the email content, "
         f"determine which category this email belongs to from these options: {categories_list}. "
         f"You MUST respond with exactly one of these category names, nothing else: {categories_list}"
     )
-    
+
     user_prompt = f"Subject: {subject}\nFrom: {from_addr}\n\n{body}"
-    
+
     result = await llm(
         system_prompt=prompt,
         user_prompt=user_prompt,
         return_json=False
     )
-    
+
     return result.strip()
 
 
-async def _extract_email_images(raw_email_bytes: bytes) -> list[str]:
+def extract_text_from_url(url: str, timeout: float = 10.0) -> str:
     """
-    Extract image attachments from email and convert to SILE image commands.
+    Extract text content from a URL. Attempts to get clean text from HTML.
     """
     try:
-        msg = BytesParser(policy=policy.default).parsebytes(raw_email_bytes)
-        image_commands = []
-        
-        if msg.is_multipart():
-            for part in msg.walk():
-                content_type = part.get_content_type()
-                content_disposition = str(part.get("Content-Disposition", ""))
-                
-                if content_type.startswith('image/') and "attachment" in content_disposition:
-                    # Extract image data
-                    payload = part.get_payload(decode=True)
-                    if payload:
-                        # Save to temporary file and create SILE command
-                        import tempfile
-                        import os
-                        from pathlib import Path
-                        from PIL import Image
-                        from tools.util import build_sile_image_from_local
-                        
-                        # Create temp file with proper extension
-                        suffix = '.png'
-                        if 'jpeg' in content_type or 'jpg' in content_type:
-                            suffix = '.jpg'
-                        
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
-                            f.write(payload)
-                            temp_path = f.name
-                        
-                        try:
-                            # Convert to PNG if needed
-                            if not temp_path.endswith('.png'):
-                                png_path = temp_path.rsplit('.', 1)[0] + '.png'
-                                with Image.open(temp_path) as img:
-                                    if img.mode not in ('RGB', 'RGBA'):
-                                        img = img.convert('RGBA')
-                                    img.save(png_path, 'PNG')
-                                os.unlink(temp_path)
-                                temp_path = png_path
-                            
-                            # Generate SILE command
-                            sile_cmd = build_sile_image_from_local(
-                                temp_path, 
-                                max_width_in=5.0, 
-                                max_height_in=4.0
-                            )
-                            image_commands.append(sile_cmd)
-                            
-                        except Exception:
-                            # Clean up and skip this image
-                            if os.path.exists(temp_path):
-                                os.unlink(temp_path)
-                            continue
-        
-        return image_commands
-        
+        req = Request(url, headers={"User-Agent": "daily-briefing/0.1 (+https://example.local)"})
+        with urlopen(req, timeout=timeout) as resp:
+            content = resp.read().decode('utf-8', errors='replace')
+
+        # Simple HTML to text conversion
+        # Remove script and style elements
+        content = re.sub(r'<script[^>]*>.*?</script>', '', content, flags=re.DOTALL | re.IGNORECASE)
+        content = re.sub(r'<style[^>]*>.*?</style>', '', content, flags=re.DOTALL | re.IGNORECASE)
+
+        # Remove HTML tags
+        content = re.sub(r'<[^>]+>', ' ', content)
+
+        # Unescape HTML entities
+        content = unescape(content)
+
+        # Normalize whitespace
+        content = re.sub(r'\s+', ' ', content).strip()
+
+        return content[:50000]  # Limit content size
+
     except Exception:
-        return []
+        return ""
+
+
+async def verbatim_rss(rss_data: Dict[str, Any], extra_prompt='') -> str:
+    """
+    Return RSS content verbatim for feeds that should be included in their entirety.
+    """
+    title = rss_data.get('title', '')
+    link = rss_data.get('link', '')
+    content = rss_data.get('content', '')
+
+    if not content and link:
+        content = extract_text_from_url(link)
+
+    if not content:
+        content = rss_data.get('summary', '')
+
+    prompt = (
+        "You are a filter that preserves RSS content verbatim with formatting control.\n"
+        "Keep article titles verbatim (do not change to title case).\n"
+        "Clean up any formatting issues but preserve the complete content.\n"
+        "Remove navigation elements, ads, and unrelated content.\n"
+        "Note: sometimes, content will include many more posts than just the title post. "
+        "Only include the title post and its subheadings in your resposne.\n"
+    ) + tools_prompt + extra_prompt
+
+    result = await llm(
+        system_prompt=prompt,
+        user_prompt=f"Title: {title}\n\n{content}",
+        return_json=False
+    )
+
+    result = result.replace('\n', '\n\n')
+
+    # Allow the new formatting tags
+    return escape_sile(result, safe_tools)
+
+
+async def pluralistic_filter(*args) -> str:
+    """
+    Special filter for Pluralistic that extracts sections up to 'Hey look at this: Delights to delectate'.
+    Inherits most functionality from verbatim_rss.
+    """
+    return await verbatim_rss(*args, extra_prompt=(
+        "For pluralistic, include all sections up to and including 'Hey look at this'\n"
+        "Don't include any sections after this."
+    ))
+
+async def de_html(text: str) -> str:
+    return await llm(
+        system_prompt=(
+            "Filter the following text from HTML to plain UTF-8.\n"
+            "Include no further commentary.\n"
+        ),
+        user_prompt=text,
+        return_json=False
+    )
+
+async def default_rss(rss_data: Dict[str, Any]) -> str:
+    """
+    Default RSS filter that extracts and cleans up the summary from RSS XML.
+    """
+    title = escape_sile(rss_data['title'])
+    published = rss_data['published'].strftime("%Y %B %-d %H:%M")
+    description = escape_sile(await de_html(rss_data['description']))
+
+    return f'\\title{{{title}}}\\cr\\Subtle{{Published {published}}}\\cr\n{description}\\bigskip'

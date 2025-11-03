@@ -21,25 +21,26 @@
 
 % Monospace headers
 \define[command=reporttitle]{
-  \font[family=JetBrains Mono, weight=700, size=16pt]{\Ink{\process}}
-  \par
+\font[family=JetBrains Mono, weight=700, size=16pt]{\Ink{\process}}
+\par
 }
 
 \define[command=sectionbox]{
-  \par\noindent\hrulefill\break
-  \skip[height=.7em]
-  \process
-  \skip[height=0pt plus 1in]
-  \vpenalty[penalty=-500]
-  \skip[height=0pt plus -1in]
+\par\noindent\hrulefill\break
+\skip[height=.7em]
+\process
+\skip[height=0pt plus 1in]
+\vpenalty[penalty=-500]
+\skip[height=0pt plus -1in]
 }
 
 
 \define[command=sectiontitle]{
-  \par\noindent\font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
-  \vpenalty[penalty=100]
-  \skip[height=.25em]
-  \vpenalty[penalty=100]
+\par\noindent\font[family=JetBrains Mono, weight=700, size=14pt]{\Ink{\process}}
+\vpenalty[penalty=100]
+\skip[height=.25em]
+\vpenalty[penalty=100]
+\par
 }
 
 % Running header: Left title + right-aligned ISO date
@@ -47,7 +48,7 @@
 
 % Running footer content and style (high-level styling)
 \define[command=runningFooter]{
-  \Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}
+\Subtle{\font[family=JetBrains Mono, size=9pt]{Page \hrPageNum}}
 }
 
 % Helper: typeset the current page number (folio) safely
@@ -58,9 +59,9 @@
   }
 }
 
-% RSS formatting schema (content/format separation)
-\define[command=rssGroupTitle]{\font[size=12pt]{\Ink{\process}}}
-\define[command=rssItemTitle]{\font[size=10pt]{\Ink{\process}}}
-\define[command=rssSubtitle]{\Subtle{\font[size=8pt]{\process}}}
-\define[command=rssItemSeparator]{\skip[height=0em]\penalty[penalty=150]}
-\define[command=rssGroupSeparator]{\skip[height=0em]\penalty[penalty=50]}
+% New LLM-controlled formatting tags
+\define[command=bold]{\font[weight=700]{\process}}
+\define[command=italics]{\font[style=italic]{\process}}
+\define[command=bolditalics]{\font[weight=700, style=italic]{\process}}
+\define[command=title]{\font[size=12pt, weight=700]{\Ink{\process}}}
+\define[command=header]{\font[size=11pt, weight=700]{\Ink{\process}}}

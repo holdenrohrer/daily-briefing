@@ -124,6 +124,7 @@ def _write_per_section_sils(verbose: bool = False, cutoff_dt: datetime | None = 
 
     metadata_info = {
         "Created": _iso_now(),
+        "Unix epoch": int(time.time()),
         "Cutoff": cutoff_dt.isoformat() if cutoff_dt else "None",
         "Official build": "Yes" if official else "No",
         "Git rev": _git_rev() or "Unknown",
@@ -157,20 +158,20 @@ def _generate_metadata_sil(**kwargs) -> str:
     data = metadata_info
 
     content_lines = [
-        "  \\vpenalty[penalty=-500]\\vfilll\\novbreak",
-        "  \\font[weight=200,size=6pt]{",
-        "    \\set[parameter=document.baselineskip, value=8pt]",
-        "    \\set[parameter=document.parskip, value=8pt]",
-        "    \\set[parameter=document.parindent, value=0pt]",
-        "    \\novbreak",
-        "    Metadata",
+        "\\vpenalty[penalty=-500]\\vfilll\\novbreak",
+        "\\font[weight=200,size=6pt]{",
+        "\\set[parameter=document.baselineskip, value=8pt]",
+        "\\set[parameter=document.parskip, value=8pt]",
+        "\\set[parameter=document.parindent, value=0pt]",
+        "\\novbreak",
+        "Metadata",
     ]
 
     # Simple k:v display for all metadata
     for key, value in data.items():
         if value is not None:
-            content_lines.append("    \\vpenalty[penalty=5]")
-            content_lines.append(f"    {key}: {escape_sile(str(value))}")
+            content_lines.append("\\vpenalty[penalty=5]")
+            content_lines.append(f"{key}: {escape_sile(str(value))}")
 
     content_lines.append("\\par}")
     content = "\n".join(content_lines)

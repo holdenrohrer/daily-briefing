@@ -257,7 +257,7 @@ def generate_sil(
     items: List[Dict[str, Any]] = data.get("items", [])
 
     def _render_item_group(source: str, group_items: List[Dict[str, Any]]) -> str:
-        lines: List[str] = [f"    \\vfil\\sectiontitle{{{escape_sile(source)}}}"]
+        lines: List[str] = [f"\\vfil\\sectiontitle{{{escape_sile(source)}}}"]
         extractions = []
 
         for item in group_items:
@@ -271,8 +271,8 @@ def generate_sil(
 
         for extraction in asyncio.run(gather()):
             # Title line
-            lines.append(f"    \\rssGroupTitle{{{title}}}")
-            lines.append("    \\par")
+            lines.append(f"\\title{{{title}}}")
+            lines.append("\\par")
             # Images
             max_h = config.COMICS_IMAGE_MAX_HEIGHT_IN
             max_w = config.COMICS_IMAGE_MAX_WIDTH_IN
@@ -290,10 +290,8 @@ def generate_sil(
             lines.extend(_outersperse(image_includes, "\\vfil\\vpenalty[penalty=-5]"))
             # Extra text
             lines.extend(_outersperse(extraction.get("extra_text", []), "\\par"))
-            lines.append("    \\skip[height=1em]\\vpenalty[penalty=-5]")
+            lines.append("\\skip[height=1em]\\vpenalty[penalty=-5]")
 
-            # Separator between items
-            lines.append("    \\rssItemSeparator")
         return "\n".join(lines)
 
     # Group items by source while preserving order
@@ -304,7 +302,7 @@ def generate_sil(
         for source, group_items in grouped_items
     ]
 
-    content = "\n  }\n  \\vfill\\sectionbox{\n".join(item_groups)
+    content = "\n}\n\\vfill\\sectionbox{\n".join(item_groups)
 
     return f"""\\define[command=comicssection]{{
   \\begin{{raggedright}}\\vfill\\sectionbox{{
